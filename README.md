@@ -1,2 +1,5 @@
-# rfid-usb-reader-reversing
-Reverse Engineering A USB RFID Reader/Writer
+# pyrfidreader
+
+Python library to control Generic RFID USB Reader/Writer 
+
+>TODO
