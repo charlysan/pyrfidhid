@@ -92,7 +92,7 @@ class RfidHid:
         buff[14] = 0x8a
         buff[15] = 0xbb
         
-        for x in xrange(0, times):
+        for x in range(0, times):
             self.dev.ctrl_transfer(0x21, self.SET_REPORT, 0x0301, 0, buff)
             sleep(0.2)
 
@@ -188,7 +188,14 @@ class RfidHid:
         cid -- (32 bits Integer) Customer ID
         uid -- (8 bits Integer)  UID
         """
-        ids_bytes = [cid] + [ord(x) for x in list(struct.pack('>I', uid))]
+        packed_uid = struct.pack('>I', uid)
+
+        if isinstance(packed_uid, str):
+            # python 2.7
+            ids_bytes = [cid] + [ord(x) for x in list(packed_uid)]
+        else:
+            # python 3
+            ids_bytes = [cid] + list(packed_uid)
 
         self.writeTag(ids_bytes)
 
