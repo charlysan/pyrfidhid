@@ -42,6 +42,13 @@ except Exception as e:
 	print(e)
 	exit()
 
+# Initialize device
+print('Initializing device...')
+rfid.init()
+sleep(2)
+print('Done!')
+print ('Please hold a tag to the reader until you hear a beep...\n')
+
 id_temp = None
 
 while True:
@@ -54,6 +61,7 @@ while True:
             print('uid: %s' % id)
             print('customer_id: %s' % payload_response.getTagCID())
             print('CRC Sum: %s' % hex(payload_response.getCRCSum()))
+            print('')
             rfid.beep()
     else:
         id_temp = None

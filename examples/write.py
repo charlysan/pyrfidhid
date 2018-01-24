@@ -46,6 +46,15 @@ except Exception as e:
 	print(e)
 	exit()
 
+# Initialize device
+print('Initializing device...')
+rfid.init()
+sleep(2)
+print('Done!')
+print('CID:UID to be written: %s:%s') % (CID, UID)
+print ('Please hold a tag to the reader until you hear two beeps...\n')
+
+
 id_temp = None
 
 while True:

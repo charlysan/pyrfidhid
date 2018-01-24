@@ -51,7 +51,10 @@ class RfidHid:
         This method should be use to initialize the device in case the OS does not find it.
         Issuing a `sudo lsusb -vd vid:pid` should produce the same result.
         """
-        desc = usb.control.get_descriptor(self.dev, self.REPORT_DESCR_SIZE, self.CLASS_TYPE_REPORT, 0)
+        desc = usb.control.get_descriptor(
+            self.dev, self.HID_REPORT_DESCRIPTOR_SIZE, 
+            self.CLASS_TYPE_REPORT, 
+            0)
         if not desc:
             raise ValueError("Cannot initialize Device.")
 
