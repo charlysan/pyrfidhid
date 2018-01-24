@@ -19,7 +19,7 @@ You will need `Python 2.7.x` or greater, and [pip](https://pip.pypa.io/en/stable
  
 ```bash
 $ brew install libusb
-$ pip install pyusb
+$ pip install pyusb --user
 ```
 
 ```bash
@@ -61,7 +61,7 @@ print(uid)
 
 The above script should try to connect to the device, read a Tag (if it is already close to the device), print the UID and beep.
 
-For more complex read/write examples, please check out the [examples](https://github.com/charlysan/pyrfidhid/tree/lib_draft/examples) folder.
+For more complex read/write examples, please check out the [examples](https://github.com/charlysan/pyrfidhid/tree/master/examples) folder.
 
 You can also check the [API documentation](documentation/apidoc.txt) for a list of exported methods.
 
