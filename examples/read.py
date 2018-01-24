@@ -19,12 +19,12 @@
 # SOFTWARE.
 
 
-r"""
-Example script to read a tag's id
+r"""Example script to read a tag's id
 
 Flow:
     - Try to read a tag within an infinite loop.
     - If a tag is found then beep once and output Customer ID, UID and CRC Sum.
+
 
 Note: extra check has been added to avoid processing the same tag (CID/UID) more than once in a row.
 """

@@ -19,8 +19,7 @@
 # SOFTWARE.
 
 
-r"""
-Example script to write a tag with custom Customer ID and UID
+r"""Example script to write a tag with custom Customer ID and UID
 
 Flow:
     - Try to read a tag within an infinite loop.
@@ -28,6 +27,7 @@ Flow:
     - Verify if the tag has been successfully written.
     - If the write operation succeeds then beep twice and output CID, UID and CRC value
     - If the write operation fails then beep three times and output error message.
+
 
 Note: extra check has been added to avoid processing the same tag (CID/UID) more than once in a row.
 """
