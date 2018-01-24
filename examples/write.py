@@ -32,53 +32,61 @@ Flow:
 Note: extra check has been added to avoid processing the same tag (CID/UID) more than once in a row.
 """
 
-from rfidhid.core import RfidHid
+from __future__ import print_function
 from time import sleep
+from rfidhid.core import RfidHid
 
-# CID and UID to be written
-CID = 77
-UID = 1234567890
+def main():
+    """Main Write Tag Function"""
 
-try:
-    # Try to open RFID device using default vid:pid (ffff:0035)
-	rfid = RfidHid()
-except Exception as e:
-	print(e)
-	exit()
+    # CID and UID to be written
+    CID = 77
+    UID = 1234567890
 
-# Initialize device
-print('Initializing device...')
-rfid.init()
-sleep(2)
-print('Done!')
-print('CID:UID to be written: %s:%s') % (CID, UID)
-print ('Please hold a tag to the reader until you hear two beeps...\n')
+    try:
+        # Try to open RFID device using default vid:pid (ffff:0035)
+        rfid = RfidHid()
+    except Exception as e:
+        print(e)
+        exit()
+
+    # Initialize device
+    print('Initializing device...')
+    rfid.init()
+    sleep(2)
+    print('Done!')
+    print('CID:UID to be written: %s:%s' % (CID, UID))
+    print ('Please hold a tag to the reader until you hear two beeps...\n')
 
 
-id_temp = None
+    uid_temp = None
 
-while True:
-    payload_response = rfid.readTag()
-    if payload_response.hasIdData():
-        id = payload_response.getTagUID()
-        # Avoid processing the same tag (CID/UID) more than once in a row
-        if id != id_temp:
-            id_temp = id
+    while True:
+        payload_response = rfid.read_tag()
+        if payload_response.has_id_data():
+            uid = payload_response.get_tag_uid()
+            # Avoid processing the same tag (CID/UID) more than once in a row
+            if uid != uid_temp:
+                uid_temp = uid
 
-            rfid.writeTagFromCIDAndUID(CID, UID)
-            sleep(0.1) # you cannot immediately read after a write operation
+                rfid.write_tag_from_cid_and_uid(CID, UID)
+                sleep(0.1) # you cannot immediately read after a write operation
 
-            payload_response_w = rfid.readTag()
-            # Write verification
-            if payload_response_w.getTagCID() == CID and payload_response_w.getTagUID() == UID:
-                print('Write OK!')
-                print('uid: %s' % payload_response_w.getTagUID())
-                print('customer_id: %s' % payload_response.getTagCID())
-                print('CRC Sum: %s' % hex(payload_response.getCRCSum()))
-                rfid.beep(2)
-            else:
-                print('Write ERROR!')
-                rfid.beep(3)
-    else:
-        id_temp = None
-    sleep(0.1)
+                payload_response_w = rfid.read_tag()
+                # Write verification
+                if payload_response_w.get_tag_cid() == CID and payload_response_w.get_tag_uid() == UID:
+                    print('Write OK!')
+                    print('uid: %s' % payload_response_w.get_tag_uid())
+                    print('customer_id: %s' % payload_response.get_tag_cid())
+                    print('CRC Sum: %s' % hex(payload_response.get_crc_sum()))
+                    rfid.beep(2)
+                else:
+                    print('Write ERROR!')
+                    rfid.beep(3)
+        else:
+            uid_temp = None
+        sleep(0.1)
+
+
+if __name__ == "__main__": 
+    main()

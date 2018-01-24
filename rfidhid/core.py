@@ -18,13 +18,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from time import sleep
+import struct
 import usb.core
 import usb.util
 import usb.control
-import struct
-from time import sleep
 
-class RfidHid:
+class RfidHid(object):
     r"""Main object used to communicate with the device""" 
     DEFAULT_VID = 0xffff
     DEFAULT_PID = 0x0035
@@ -61,7 +61,8 @@ class RfidHid:
         return desc
 
 
-    def __calculateCRCSum(self, payload, init_val=CRC_WRITE_INIT_VALUE):
+    @staticmethod
+    def __calculate_crc_sum(payload, init_val=CRC_WRITE_INIT_VALUE):
         r"""Calculate CRC checksum of the payload to be sent to the device.
         
         Arguments:
@@ -70,14 +71,14 @@ class RfidHid:
         """
 
         tmp = init_val
-        for x in payload:
-            tmp = tmp ^ x 
+        for byte in payload:
+            tmp = tmp ^ byte 
 
         return tmp  
 
 
     def beep(self, times=1):
-        """Send a command to make the device to emit a "beep"
+        r"""Send a command to make the device to emit a "beep"
 
         Arguments:
         times -- Number of "beeps" to emit
@@ -95,18 +96,16 @@ class RfidHid:
         buff[14] = 0x8a
         buff[15] = 0xbb
         
-        for x in range(0, times):
+        for _ in range(0, times):
             self.dev.ctrl_transfer(0x21, self.SET_REPORT, 0x0301, 0, buff)
             sleep(0.2)
 
 
-    def readTag(self):
+    def read_tag(self):
         r"""Send a command to "read a tag" and retrieve the response from the device.
 
         Returns a PayloadResponse object
         """
-        ids_bytes = []
-        crc_read = 0
         buff = [0x00] * self.BUFFER_SIZE
 
         # Setup payload for reading operation
@@ -129,7 +128,7 @@ class RfidHid:
         return PayloadResponse(response)
 
 
-    def writeTag(self, ids_bytes):
+    def write_tag(self, ids_bytes):
         r"""Send a command to "write a tag" 
 
         Arguments:
@@ -155,7 +154,7 @@ class RfidHid:
             raise ValueError('Communication Error.')
 
         # Read from Feature Report 2    
-        ret = self.dev.ctrl_transfer(0xa1, self.GET_REPORT, 0x0302, 0, self.BUFFER_SIZE)
+        self.dev.ctrl_transfer(0xa1, self.GET_REPORT, 0x0302, 0, self.BUFFER_SIZE)
 
         buff = [0x00] * self.BUFFER_SIZE
 
@@ -174,7 +173,7 @@ class RfidHid:
         buff[0x13] = ids_bytes[3]
         buff[0x14] = ids_bytes[4]
         buff[0x15] = 0x80
-        buff[0x25] = self.__calculateCRCSum(ids_bytes)
+        buff[0x25] = self.__calculate_crc_sum(ids_bytes)
         buff[0x26] = 0xbb
 
         # Write to Feature Report 1
@@ -184,7 +183,7 @@ class RfidHid:
         self.dev.ctrl_transfer(0xa1, self.GET_REPORT, 0x0302, 0, self.BUFFER_SIZE)
 
 
-    def writeTagFromCIDAndUID(self, cid, uid):
+    def write_tag_from_cid_and_uid(self, cid, uid):
         r"""Send a command to "write a tag" 
 
         Arguments:
@@ -199,11 +198,11 @@ class RfidHid:
         else:
             # python 3
             ids_bytes = [cid] + list(packed_uid)
+ 
+        self.write_tag(ids_bytes)
 
-        self.writeTag(ids_bytes)
 
-
-class PayloadResponse:
+class PayloadResponse(object):
     r"""Object representation of the response coming from the device"""
     RESPONSE_LENGTH_WITH_TAG = 19
     CID_POS = 12
@@ -217,37 +216,37 @@ class PayloadResponse:
         self.uid = None
         self.crc = None
 
-        if (len(data) == self.RESPONSE_LENGTH_WITH_TAG):
+        if len(data) == self.RESPONSE_LENGTH_WITH_TAG:
             self.cid = self.data[self.CID_POS]
             self.uid = self.data[self.UID_MSB_POS:self.UID_LSB_POS+1]
             self.crc = self.data[self.CRC_READ_POS]
 
-    def getTagUIDAsByteSequence(self):
+    def get_tag_uid_as_byte_sequence(self):
         r"""Gets the Tag's UID as a sequence of bytes. E.g. [0x23, 0xa4, 0x23, 0x56]"""
         return self.uid 
 
 
-    def getTagUID(self):
+    def get_tag_uid(self):
         r"""Gets the Tag's UID as a 32 bits Integer"""
         return struct.unpack('>I', bytearray(self.uid))[0] if self.uid else None
 
 
-    def getTagCID(self):
+    def get_tag_cid(self):
         r"""Gets the Tag's Customer ID as a 8 bits Integer"""
         return self.cid
 
 
-    def getCRCSum(self):
+    def get_crc_sum(self):
         r"""Gets the UID+CID CRC Sum check coming from the device"""
         return self.crc   
 
 
-    def hasIdData(self):
+    def has_id_data(self):
         r"""Check if the response contains the Tag's ID information"""
         return True if self.uid else False
 
 
-    def getRawData(self):
+    def get_raw_data(self):
         r"""Gets the response raw data coming from the device"""
         return self.data
 
