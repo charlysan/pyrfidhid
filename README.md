@@ -20,23 +20,18 @@ You will need `Python 2.7.x` or greater, and [pip](https://pip.pypa.io/en/stable
 ```bash
 $ brew install libusb
 $ pip install pyusb --user
-```
-
-```bash
-python setup.py install --user
+$ python setup.py install --user
 ```
 
 
 ### Linux
 
 ```bash
-sudo apt-get install libusb-1.0-0-dev
-sudo pip install pyusb
+$ sudo apt-get install libusb-1.0-0-dev
+$ sudo pip install pyusb
+$ sudo python setup.py install
 ```
 
-```bash
-sudo python setup.py install
-```
 
 ## Usage
 
