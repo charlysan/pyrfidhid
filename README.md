@@ -1,11 +1,11 @@
 # pyrfidhid
 
-Python library to control Generic USB HID RFID Reader/Writer 
+Python library to control Generic USB HID 125Khz RFID Reader/Writer 
 
 
 ## Introduction
 
-This library is the result of reverse-engineering the communication protocol of a USB RFID Reader/Writer. A detailed document describing the whole procedure can be found at the wiki section of this project:
+This library is the result of reverse-engineering the communication protocol of a USB 125Khz RFID Reader/Writer. A detailed document describing the whole procedure can be found at the wiki section of this project:
 
 [How to reverse engineer a USB HID RFID Reader/Writer](https://github.com/charlysan/pyrfidhid/wiki/Reverse-Engineering-A-USB-HID-RFID-Reader-Writer)
 
@@ -45,7 +45,13 @@ The library should work with both Python 2.7.x and 3.x. After running the `setup
 ```python
 from rfidhid.core import RfidHid
 
-rfid = RfidHid()
+try:
+    # Try to open RFID device using default vid:pid (ffff:0035)
+    rfid = RfidHid()
+except Exception as e:
+    print(e)
+    exit()
+
 payload_response = rfid.read_tag()
 uid = payload_response.get_tag_uid()
 
