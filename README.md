@@ -1,15 +1,15 @@
 # pyrfidhid
 
-Python library to control Generic USB HID 125Khz RFID Reader/Writer 
+Python library to control Chinese USB HID 125Khz RFID Reader/Writer 
 
 
 ## Introduction
 
-This library is the result of reverse-engineering the communication protocol of a USB 125Khz RFID Reader/Writer. A detailed document describing the whole procedure can be found at the wiki section of this project:
+This library is the result of reverse-engineering the communication protocol of a Chinese USB 125Khz RFID Reader/Writer. A detailed document describing the whole procedure can be found at the wiki section of this project:
 
 [How to reverse engineer a USB HID RFID Reader/Writer](https://github.com/charlysan/pyrfidhid/wiki/Reverse-Engineering-A-USB-HID-RFID-Reader-Writer)
 
-The library can be used to fully control the USB RFID device under Linux or MacOS, and it uses [pyusb](https://github.com/pyusb/pyusb) and [libusb](http://libusb.info/) to communicate through the USB port.
+The library can be used to control the USB RFID device under Linux or MacOS, and it uses [pyusb](https://github.com/pyusb/pyusb) and [libusb](http://libusb.info/) to communicate through the USB port.
 
 ## Installation
 
@@ -65,6 +65,7 @@ You can also check the [API documentation](documentation/apidoc.txt) for a list 
 
 This is still in beta, and there are a couple of "to-do's":
 
+- Check if there are more commands available (I'm sure there must be), e.g. get device status, control beep duration and beeping times, control LEDs and RF, etc. 
 - Support [T5577](http://www.xccrfid.com/uploadfile/downloads/T5577.pdf) tags.
 - Support write protection.
 - Implement a console tool capable of reading, writing and cloning tags with the same ease as `IDRW V3` tool.
