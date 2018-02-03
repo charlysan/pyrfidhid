@@ -101,6 +101,7 @@ class RfidHid(object):
             sleep(0.2)
 
 
+
     def read_tag(self):
         r"""Send a command to "read a tag" and retrieve the response from the device.
 
@@ -156,10 +157,26 @@ class RfidHid(object):
         # Write to Feature Report 1
         self._hid_set_feature_report(1, buff)
 
-        sleep(0.2)
-
         # Read from Feature Report 2    
-        return self._hid_get_feature_report(2, self.BUFFER_SIZE)
+        response = self._hid_get_feature_report(2, self.BUFFER_SIZE)
+
+        # T5577 tags cannot be read after a write operation without taking them out
+        # of the RF field before. A workaround is to send a "beep" command with buff[0x0c] = 0x05 
+        # before trying to query them again. Actually this is what RWID V3 Tool does
+        payload_length = 3
+        buff = self._initialize_buffer(payload_length)
+
+        buff[0x06] = 0x08
+        buff[0x0b] = self.CMD_BEEP
+        buff[0x0c] = 0x05 if tag_type == self.TAG_T5577 else 0x04
+        buff[0x0d] = 0x01
+        buff[0x0e] = self._calculate_crc_sum(self._get_payload_from_buffer(buff, payload_length))
+        buff[0x0f] = self.ETX
+
+        # Write to Feature Report 1
+        self._hid_set_feature_report(1, buff)
+
+        return response
 
 
     def write_tag_from_cid_and_uid(self, cid, uid, tag_type=TAG_EM4305):
