@@ -37,9 +37,9 @@ class RfidHid(object):
     CMD_BEEP = 0x89
     TAG_EM4305 = 0x02
     TAG_T5577 = 0x00
-    STX_POS = 0x08
-    STX = 0xaa
-    ETX = 0xbb
+    STX_WRITE_POS = 0x08
+    STX_WRITE = 0xaa
+    ETX_WRITE = 0xbb
 
     HID_REPORT_TYPE_FEATURE = 0x03
     HID_REQUEST_HOST_TO_DEVICE_CLASS_INTERFACE = 0x21
@@ -86,14 +86,13 @@ class RfidHid(object):
         Arguments:
         times -- Number of "beeps" to emit
         """
-        payload_length = 3
-        buff = self._initialize_write_buffer(payload_length)
+        payload = [0x00] * 0x03
 
-        buff[0x06] = 0x08
-        buff[0x0b] = self.CMD_BEEP
-        buff[0x0c] = 0x01
-        buff[0x0d] = 0x01
-        buff[0x0e] = self._calculate_crc_sum(self._get_payload_from_write_buffer(buff))
+        payload[0x00] = self.CMD_BEEP
+        payload[0x01] = 0x01
+        payload[0x02] = 0x01
+
+        buff = self._initialize_write_buffer(payload)
         
         for _ in range(0, times):
             self._hid_set_feature_report(1, buff)
@@ -105,13 +104,12 @@ class RfidHid(object):
 
         Returns a PayloadResponse object
         """
-        payload_length = 0x03
-        buff = self._initialize_write_buffer(payload_length)
+        payload = [0x00] * 0x03
 
         # Setup payload for reading operation
-        buff[0x06] = 0x08
-        buff[0x0b] = self.CMD_READ_TAG
-        buff[0x0e] = self._calculate_crc_sum(self._get_payload_from_write_buffer(buff))
+        payload[0x00] = self.CMD_READ_TAG
+
+        buff = self._initialize_write_buffer(payload)
 
         # Write Feature Report 1
         response = self._hid_set_feature_report(1, buff)
@@ -133,22 +131,22 @@ class RfidHid(object):
                            Format: [cid, uid_b3, uid_b2, uid_b1, uid_b0]
         tag_type (int)  -- Tag Type (EM4305 or T5577)
         """
-        payload_length = 0x1a
-        buff = self._initialize_write_buffer(payload_length)
+        payload = [0x00] * 0x1a
 
         # Payload containing CID, UID and CRC
-        buff[0x06] = 0x1f
-        buff[0x0b] = self.CMD_WRITE_TAG
-        buff[0x0d] = 0x01
-        buff[0x0e] = 0x01
-        buff[0x0f] = tag_type
-        buff[0x10] = id_bytes[0] 
-        buff[0x11] = id_bytes[1]
-        buff[0x12] = id_bytes[2]
-        buff[0x13] = id_bytes[3]
-        buff[0x14] = id_bytes[4]
-        buff[0x15] = 0x80
-        buff[0x25] = self._calculate_crc_sum(self._get_payload_from_write_buffer(buff))
+        payload[0x00] = self.CMD_WRITE_TAG
+        payload[0x02] = 0x01
+        payload[0x03] = 0x01
+        payload[0x04] = tag_type
+        payload[0x05] = id_bytes[0] 
+        payload[0x06] = id_bytes[1]
+        payload[0x07] = id_bytes[2]
+        payload[0x08] = id_bytes[3]
+        payload[0x09] = id_bytes[4]
+        payload[0x0a] = 0x80
+
+        buff = self._initialize_write_buffer(payload)
+        buff[0x06] = 0x1f # Override 0x08 with 0x1f for write operation
 
         # Write to Feature Report 1
         self._hid_set_feature_report(1, buff)
@@ -158,15 +156,14 @@ class RfidHid(object):
 
         # T5577 tags cannot be read after a write operation without taking them out
         # of the field before. A workaround is to send a "beep" command with buff[0x0c] = 0x05 
-        # before trying to query them again. Actually this is what RWID V3 Tool does
-        payload_length = 3
-        buff = self._initialize_write_buffer(payload_length)
+        # before trying to query them again. Actually this is what RWID V3 Tool does.
+        payload = [0x00] * 0x03
 
-        buff[0x06] = 0x08
-        buff[0x0b] = self.CMD_BEEP
-        buff[0x0c] = 0x05 if tag_type == self.TAG_T5577 else 0x04
-        buff[0x0d] = 0x01
-        buff[0x0e] = self._calculate_crc_sum(self._get_payload_from_write_buffer(buff))
+        payload[0x00] = self.CMD_BEEP
+        payload[0x01] = 0x05 if tag_type == self.TAG_T5577 else 0x04
+        payload[0x02] = 0x01
+
+        buff = self._initialize_write_buffer(payload)
 
         # Write to Feature Report 1
         self._hid_set_feature_report(1, buff)
@@ -229,23 +226,21 @@ class RfidHid(object):
         return tmp  
 
 
-    def _initialize_write_buffer(self, payload_length=0):
+    def _initialize_write_buffer(self, payload):
         buff = [0x00] * self.BUFFER_SIZE
+        payload_length = len(payload)
 
         buff[0x00] = 0x01
-        buff[self.STX_POS] = self.STX
-        buff[self.STX_POS+2] = payload_length
-        buff[self.STX_POS+2+payload_length+2] = self.ETX
+        buff[0x06] = 0x08
+        buff[self.STX_WRITE_POS] = self.STX_WRITE
+        buff[self.STX_WRITE_POS+2] = payload_length
+        buff[self.STX_WRITE_POS+3:self.STX_WRITE_POS+3+payload_length] = payload            
+        buff[self.STX_WRITE_POS+3+payload_length] = self._calculate_crc_sum([payload_length] + payload)
+        buff[self.STX_WRITE_POS+3+payload_length+1] = self.ETX_WRITE
 
         return buff
 
-
-    def _get_payload_from_write_buffer(self, buff):
-        r"""Extract payload from buffer based on STX position and payload length"""
-        length = buff[self.STX_POS+2]
-        return buff[self.STX_POS+1:self.STX_POS+1+length+2]
-
-
+    
 class PayloadResponse(object):
     r"""Object representation of the response coming from the device"""
     RESPONSE_LENGTH_WITH_TAG = 0x13
