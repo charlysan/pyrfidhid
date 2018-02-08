@@ -21,16 +21,13 @@
 
 from time import sleep
 import struct
-import usb.core
-import usb.util
-import usb.control
+from . import usb_hid
 
 class RfidHid(object):
     r"""Main object used to communicate with the device""" 
     DEVICE_DEFAULT_VID = 0xffff
     DEVICE_DEFAULT_PID = 0x0035
     DEVICE_HID_REPORT_DESCRIPTOR_SIZE = 28
-    DEVICE_HID_INTERFACE_0 = 0x00
 
     CMD_READ_TAG = 0x25
     CMD_WRITE_TAG = 0x21
@@ -41,13 +38,6 @@ class RfidHid(object):
     STX_WRITE = 0xaa
     ETX_WRITE = 0xbb
 
-    HID_REPORT_TYPE_FEATURE = 0x03
-    HID_REQUEST_HOST_TO_DEVICE_CLASS_INTERFACE = 0x21
-    HID_REQUEST_DEVICE_TO_HOST_CLASS_INTERFACE = 0xa1
-    HID_SET_REPORT = 0x09
-    HID_GET_REPORT = 0x01
-    CLASS_TYPE_REPORT = 0x22
-
     BUFFER_SIZE = 256
     
 
@@ -56,10 +46,7 @@ class RfidHid(object):
 
         If no arguments are supplied then the default vid and pid will be used.
         """
-        self.dev = None
-        self.dev = usb.core.find(idVendor=vendor_id, idProduct=product_id)
-        if self.dev is None:
-            raise ValueError("Device with id %.4x:%.4x not found." % (vendor_id, product_id))
+        self.hid = usb_hid.HID(vendor_id, product_id)
 
 
     def init(self):
@@ -68,12 +55,8 @@ class RfidHid(object):
         This method should be use to initialize the device in case the OS does not find it.
         Issuing a `sudo lsusb -vd vid:pid` should produce the same result.
         """
-        desc = usb.control.get_descriptor(
-            self.dev, 
-            self.DEVICE_HID_REPORT_DESCRIPTOR_SIZE, 
-            self.CLASS_TYPE_REPORT, 
-            0
-        )
+        desc = self.hid.get_report_descriptor(self.DEVICE_HID_REPORT_DESCRIPTOR_SIZE)
+
         if not desc:
             raise ValueError("Cannot initialize Device.")
 
@@ -95,7 +78,7 @@ class RfidHid(object):
         buff = self._initialize_write_buffer(payload)
         
         for _ in range(0, times):
-            self._hid_set_feature_report(1, buff)
+            self.hid.set_feature_report(1, buff)
             sleep(0.2)
 
 
@@ -112,13 +95,13 @@ class RfidHid(object):
         buff = self._initialize_write_buffer(payload)
 
         # Write Feature Report 1
-        response = self._hid_set_feature_report(1, buff)
+        response = self.hid.set_feature_report(1, buff)
 
         if response != self.BUFFER_SIZE:
             raise ValueError('Communication Error.')
 
         # Read from Feature Report 2    
-        response = self._hid_get_feature_report(2, self.BUFFER_SIZE).tolist()
+        response = self.hid.get_feature_report(2, self.BUFFER_SIZE).tolist()
 
         return PayloadResponse(response)
 
@@ -149,10 +132,10 @@ class RfidHid(object):
         buff[0x06] = 0x1f # Override 0x08 with 0x1f for write operation
 
         # Write to Feature Report 1
-        self._hid_set_feature_report(1, buff)
+        self.hid.set_feature_report(1, buff)
 
         # Read from Feature Report 2    
-        response = self._hid_get_feature_report(2, self.BUFFER_SIZE)
+        response = self.hid.get_feature_report(2, self.BUFFER_SIZE)
 
         # T5577 tags cannot be read after a write operation without taking them out
         # of the field before. A workaround is to send a "beep" command with buff[0x0c] = 0x05 
@@ -166,7 +149,7 @@ class RfidHid(object):
         buff = self._initialize_write_buffer(payload)
 
         # Write to Feature Report 1
-        self._hid_set_feature_report(1, buff)
+        self.hid.set_feature_report(1, buff)
 
         return response
 
@@ -189,27 +172,6 @@ class RfidHid(object):
  
         return self.write_tag(ids_bytes, tag_type)
 
-
-    def _hid_set_feature_report(self, report_number, data):
-
-        return self.dev.ctrl_transfer(
-            bmRequestType=self.HID_REQUEST_HOST_TO_DEVICE_CLASS_INTERFACE, 
-            bRequest=self.HID_SET_REPORT, 
-            wValue=self.HID_REPORT_TYPE_FEATURE << 8 | report_number, 
-            wIndex=self.DEVICE_HID_INTERFACE_0, 
-            data_or_wLength=data
-        )
-        
-
-    def _hid_get_feature_report(self, report_number, report_length):
-
-        return self.dev.ctrl_transfer(
-            bmRequestType=self.HID_REQUEST_DEVICE_TO_HOST_CLASS_INTERFACE, 
-            bRequest=self.HID_GET_REPORT, 
-            wValue=self.HID_REPORT_TYPE_FEATURE << 8 | report_number, 
-            wIndex=self.DEVICE_HID_INTERFACE_0, 
-            data_or_wLength=report_length
-        )
 
 
     @staticmethod
