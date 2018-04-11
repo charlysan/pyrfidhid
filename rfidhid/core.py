@@ -26,7 +26,7 @@ import usb.util
 import usb.control
 
 class RfidHid(object):
-    r"""Main object used to communicate with the device""" 
+    r"""Main object used to communicate with the device"""
     DEFAULT_VID = 0xffff
     DEFAULT_PID = 0x0035
     HID_REPORT_DESCRIPTOR_SIZE = 28
@@ -53,8 +53,8 @@ class RfidHid(object):
         Issuing a `sudo lsusb -vd vid:pid` should produce the same result.
         """
         desc = usb.control.get_descriptor(
-            self.dev, self.HID_REPORT_DESCRIPTOR_SIZE, 
-            self.CLASS_TYPE_REPORT, 
+            self.dev, self.HID_REPORT_DESCRIPTOR_SIZE,
+            self.CLASS_TYPE_REPORT,
             0)
         if not desc:
             raise ValueError("Cannot initialize Device.")
@@ -65,7 +65,7 @@ class RfidHid(object):
     @staticmethod
     def __calculate_crc_sum(payload, init_val=CRC_WRITE_INIT_VALUE):
         r"""Calculate CRC checksum of the payload to be sent to the device.
-        
+
         Arguments:
         payload -- binary representation of Tag's cid + uid as a sequence of bytes.
                    Example: cid:uid = 77:1234567890 => payload = [0xd4 0x49 0x96 0x02 0xd2]
@@ -73,9 +73,9 @@ class RfidHid(object):
 
         tmp = init_val
         for byte in payload:
-            tmp = tmp ^ byte 
+            tmp = tmp ^ byte
 
-        return tmp  
+        return tmp
 
 
     def beep(self, times=1):
@@ -96,7 +96,7 @@ class RfidHid(object):
         buff[13] = 0x01
         buff[14] = 0x8a
         buff[15] = 0xbb
-        
+
         for _ in range(0, times):
             self.dev.ctrl_transfer(0x21, self.SET_REPORT, 0x0301, 0, buff)
             sleep(0.2)
@@ -123,14 +123,14 @@ class RfidHid(object):
         if response != self.BUFFER_SIZE:
             raise ValueError('Communication Error.')
 
-        # Read from Feature Report 2    
+        # Read from Feature Report 2
         response = self.dev.ctrl_transfer(0xa1, self.GET_REPORT, 0x0302, 0, self.BUFFER_SIZE).tolist()
 
         return PayloadResponse(response)
 
 
     def write_tag(self, ids_bytes):
-        r"""Send a command to "write a tag" 
+        r"""Send a command to "write a tag"
 
         Arguments:
         ids_bytes -- Customer ID + UID to be written in binary byte format.
@@ -154,7 +154,7 @@ class RfidHid(object):
         if response != self.BUFFER_SIZE:
             raise ValueError('Communication Error.')
 
-        # Read from Feature Report 2    
+        # Read from Feature Report 2
         self.dev.ctrl_transfer(0xa1, self.GET_REPORT, 0x0302, 0, self.BUFFER_SIZE)
 
         buff = [0x00] * self.BUFFER_SIZE
@@ -168,7 +168,7 @@ class RfidHid(object):
         buff[0x0d] = 0x01
         buff[0x0e] = 0x01
         buff[0x0f] = 0x02
-        buff[0x10] = ids_bytes[0] 
+        buff[0x10] = ids_bytes[0]
         buff[0x11] = ids_bytes[1]
         buff[0x12] = ids_bytes[2]
         buff[0x13] = ids_bytes[3]
@@ -180,12 +180,12 @@ class RfidHid(object):
         # Write to Feature Report 1
         self.dev.ctrl_transfer(0x21, self.SET_REPORT, 0x0301, 0, buff)
 
-        # Read from Feature Report 2    
+        # Read from Feature Report 2
         self.dev.ctrl_transfer(0xa1, self.GET_REPORT, 0x0302, 0, self.BUFFER_SIZE)
 
 
     def write_tag_from_cid_and_uid(self, cid, uid):
-        r"""Send a command to "write a tag" 
+        r"""Send a command to "write a tag"
 
         Arguments:
         cid -- (32 bits Integer) Customer ID
@@ -199,7 +199,7 @@ class RfidHid(object):
         else:
             # python 3
             ids_bytes = [cid] + list(packed_uid)
- 
+
         self.write_tag(ids_bytes)
 
 
@@ -224,12 +224,21 @@ class PayloadResponse(object):
 
     def get_tag_uid_as_byte_sequence(self):
         r"""Gets the Tag's UID as a sequence of bytes. E.g. [0x23, 0xa4, 0x23, 0x56]"""
-        return self.uid 
+        return self.uid
 
 
     def get_tag_uid(self):
         r"""Gets the Tag's UID as a 32 bits Integer"""
         return struct.unpack('>I', bytearray(self.uid))[0] if self.uid else None
+
+    def get_tag_w26(self):
+        r"""Interprets the Tag's UID as W26 (H10301) format.
+
+        Returns a tuple (facility_code, card_number) or None on format mismatch."""
+        if self.uid and self.uid[0] == 0:
+            return struct.unpack('>BH', bytearray(self.uid[1:]))
+        else:
+            return None
 
 
     def get_tag_cid(self):
@@ -239,7 +248,7 @@ class PayloadResponse(object):
 
     def get_crc_sum(self):
         r"""Gets the UID+CID CRC Sum check coming from the device"""
-        return self.crc   
+        return self.crc
 
 
     def has_id_data(self):
