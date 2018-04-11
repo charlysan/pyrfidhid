@@ -62,6 +62,9 @@ def main():
                 print('uid: %s' % uid)
                 print('customer_id: %s' % payload_response.get_tag_cid())
                 print('CRC Sum: %s' % hex(payload_response.get_crc_sum()))
+                w26 = payload_response.get_tag_w26()
+                if w26:
+                    print('W26: facility code = %d, card number = %d' % w26)
                 print('')
                 rfid.beep()
         else:
