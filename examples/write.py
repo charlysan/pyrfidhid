@@ -41,7 +41,7 @@ def main():
 
     # CID and UID to be written
     CID = 77
-    UID = 1234567890
+    UID = 1234567891
 
     try:
         # Try to open RFID device using default vid:pid (ffff:0035)

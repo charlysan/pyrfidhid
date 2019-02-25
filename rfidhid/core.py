@@ -34,9 +34,9 @@ class RfidHid(object):
     CMD_BEEP = 0x89
     TAG_EM4305 = 0x02
     TAG_T5577 = 0x00
-    STX_WRITE_POS = 0x08
-    STX_WRITE = 0xaa
-    ETX_WRITE = 0xbb
+    SOM_WRITE_POS = 0x08
+    SOM_WRITE = 0xaa
+    EOM_WRITE = 0xbb
 
     BUFFER_SIZE = 256
     
@@ -175,30 +175,33 @@ class RfidHid(object):
 
 
     @staticmethod
-    def _calculate_crc_sum(payload, init_val=0):
-        r"""Calculate CRC checksum of the payload to be sent to the device.
+    def _calculate_crc_sum(payload_data, init_val=0):
+        r"""Calculate CRC checksum of the payload data to be sent to the device.
         
         Arguments:
-        payload (list) -- binary representation of the payload as a sequence of bytes.
+        payload data (list) -- binary representation of the payload data as a sequence of bytes.
         """
         tmp = init_val
-        for byte in payload:
+        for byte in payload_data:
             tmp = tmp ^ byte 
 
         return tmp  
 
 
-    def _initialize_write_buffer(self, payload):
+    def _initialize_write_buffer(self, data):
+        r"""Initializa the write buffer by appending to the data payload (command + arguments) 
+        the SOM (start of message), EOM (end of message), Length and CRC
+        """
         buff = [0x00] * self.BUFFER_SIZE
-        payload_length = len(payload)
+        data_length = len(data)
 
         buff[0x00] = 0x01
         buff[0x06] = 0x08
-        buff[self.STX_WRITE_POS] = self.STX_WRITE
-        buff[self.STX_WRITE_POS+2] = payload_length
-        buff[self.STX_WRITE_POS+3:self.STX_WRITE_POS+3+payload_length] = payload            
-        buff[self.STX_WRITE_POS+3+payload_length] = self._calculate_crc_sum([payload_length] + payload)
-        buff[self.STX_WRITE_POS+3+payload_length+1] = self.ETX_WRITE
+        buff[self.SOM_WRITE_POS] = self.SOM_WRITE
+        buff[self.SOM_WRITE_POS+2] = data_length
+        buff[self.SOM_WRITE_POS+3:self.SOM_WRITE_POS+3+data_length] = data            
+        buff[self.SOM_WRITE_POS+3+data_length] = self._calculate_crc_sum([data_length] + data)
+        buff[self.SOM_WRITE_POS+3+data_length+1] = self.EOM_WRITE
 
         return buff
 
