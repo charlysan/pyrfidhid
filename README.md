@@ -7,7 +7,7 @@ Python library to control Chinese USB HID 125Khz RFID Reader/Writer
 
 This library is the result of reverse-engineering the communication protocol of a Chinese USB 125Khz RFID Reader/Writer. A detailed document describing the whole procedure can be found at the wiki section of this project:
 
-[How to reverse engineer a USB HID RFID Reader/Writer](https://github.com/charlysan/pyrfidhid/wiki/Reverse-Engineering-A-USB-HID-RFID-Reader-Writer)
+[How to reverse engineer a USB HID RFID Reader/Writer](https://github.com/charlysan/pyrfidhid/wiki/Reverse-Engineering-A-USB-HID-RFID-Reader-Writer---Part-1)
 
 The library can be used to control the USB RFID device under Linux or MacOS, and it uses [pyusb](https://github.com/pyusb/pyusb) and [libusb](http://libusb.info/) to communicate through the USB port.
 
