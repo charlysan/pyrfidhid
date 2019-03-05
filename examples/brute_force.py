@@ -44,10 +44,11 @@ def main():
     
     cmds = []
 
+    payload = [0x00] * 0x03
+    payload[0x01] = 0x01
+    payload[0x02] = 0x01
+
     for cmd in range (0x00,0xff):
-        payload = [0x00] * 0x03
-        payload[0x01] = 0x01
-        payload[0x02] = 0x01
         payload[0x00] = cmd 
         buff = rfid._initialize_write_buffer(payload)
 
