@@ -234,6 +234,15 @@ class PayloadResponse(object):
     def get_tag_uid(self):
         r"""Gets the Tag's UID as a 32 bits Integer"""
         return struct.unpack('>I', bytearray(self.uid))[0] if self.uid else None
+    
+    def get_tag_w26(self):
+        r"""Interprets the Tag's UID as W26 (H10301) format.
+
+        Returns a tuple (facility_code, card_number) or None on format mismatch."""
+        if self.uid and self.uid[0] == 0:
+            return struct.unpack('>BH', bytearray(self.uid[1:]))
+        else:
+            return None
 
 
     def get_tag_cid(self):
