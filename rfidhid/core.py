@@ -230,18 +230,18 @@ class PayloadResponse(object):
         r"""Gets the Tag's UID as a 32 bits Integer"""
         return self._base_convert(struct.unpack('>I', bytearray(self.uid))[0], base=base, zero_padding=zero_padding) if self.uid else None
 
-    def get_tag_w26(self, base=BASE10, zero_padding_fc=2, zero_padding_cn=3):
+    def get_tag_w26(self, base=BASE10, zero_padding_fc=2, zero_padding_cn=4):
         r"""Interprets the Tag's UID as W26 (H10301) format.
 
         Returns a tuple (facility_code, card_number) or None on format mismatch."""
         if self.uid and self.uid[0] == 0:
-            uid = list(struct.unpack('>BH', bytearray(self.uid[1:])))
-            uid[0] = self._base_convert(
-                uid[0], base=base, zero_padding=zero_padding_fc)
-            uid[1] = self._base_convert(
-                uid[1], base=base, zero_padding=zero_padding_cn)
+            w26 = list(struct.unpack('>BH', bytearray(self.uid[1:])))
+            w26[0] = self._base_convert(
+                w26[0], base=base, zero_padding=zero_padding_fc)
+            w26[1] = self._base_convert(
+                w26[1], base=base, zero_padding=zero_padding_cn)
 
-            return tuple(uid)
+            return tuple(w26)
         else:
             return None
 

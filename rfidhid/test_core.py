@@ -72,12 +72,12 @@ class TestPayloadResponse(unittest.TestCase):
         self.assertEqual(expected, actual)
 
     def test_get_tag_w26_base16(self):
-        expected = ('0x96', '0x2d2')
+        expected = ('0x96', '0x02d2')
         actual = self.payloadW26.get_tag_w26(base=PayloadResponse.BASE16)
         self.assertEqual(expected, actual)
 
     def test_get_tag_w26_base2(self):
-        expected = ('0b10010110', '0b001011010010')
+        expected = ('0b10010110', '0b0000001011010010')
         actual = self.payloadW26.get_tag_w26(base=PayloadResponse.BASE2)
         self.assertEqual(expected, actual)
 
