@@ -229,34 +229,38 @@ class PayloadResponse(object):
             self.crc = self.data[self.CRC_READ_POS]
 
 
-    def get_tag_uid_as_byte_sequence(self, base=BASE10):
+    def get_tag_uid_as_byte_sequence(self, base=BASE10, zero_padding=2):
         r"""Gets the Tag's UID as a sequence of bytes. E.g. [0x23, 0xa4, 0x23, 0x56]"""
-        return self._base_convert(self.uid, base)
+        return self._base_convert(self.uid, base=base, zero_padding=zero_padding)
 
 
-    def get_tag_uid(self, base=BASE10):
+    def get_tag_uid(self, base=BASE10, zero_padding=8):
         r"""Gets the Tag's UID as a 32 bits Integer"""
-        return self._base_convert(struct.unpack('>I', bytearray(self.uid))[0], base) if self.uid else None
+        return self._base_convert(struct.unpack('>I', bytearray(self.uid))[0], base=base, zero_padding=zero_padding) if self.uid else None
 
 
-    def get_tag_w26(self, base=BASE10):
+    def get_tag_w26(self, base=BASE10, zero_padding_fc=2, zero_padding_cn=3):
         r"""Interprets the Tag's UID as W26 (H10301) format.
 
         Returns a tuple (facility_code, card_number) or None on format mismatch."""
         if self.uid and self.uid[0] == 0:
-            return self._base_convert(struct.unpack('>BH', bytearray(self.uid[1:])), base)
+            uid = list(struct.unpack('>BH', bytearray(self.uid[1:]))) 
+            uid[0] = self._base_convert(uid[0], base=base, zero_padding=zero_padding_fc)
+            uid[1] = self._base_convert(uid[1], base=base, zero_padding=zero_padding_cn)
+            
+            return tuple(uid)
         else:
             return None
 
 
-    def get_tag_cid(self, base=BASE10):
+    def get_tag_cid(self, base=BASE10, zero_padding=2):
         r"""Gets the Tag's Customer ID as a 8 bits Integer"""
-        return self._base_convert(self.cid, base)
+        return self._base_convert(self.cid, base=base, zero_padding=zero_padding)
 
 
-    def get_crc_sum(self, base=BASE10):
+    def get_crc_sum(self, base=BASE10, zero_padding=2):
         r"""Gets the UID+CID CRC Sum check coming from the device"""
-        return self._base_convert(self.crc, base)
+        return self._base_convert(self.crc, base=base, zero_padding=zero_padding)
 
 
     def has_id_data(self):
@@ -264,24 +268,24 @@ class PayloadResponse(object):
         return True if self.uid else False
 
 
-    def get_raw_data(self, base=BASE10):
+    def get_raw_data(self, base=BASE10, zero_padding=2):
         r"""Gets the response raw data coming from the device"""
-        return self._base_convert(self.data, base)
+        return self._base_convert(self.data, base=base, zero_padding=zero_padding)
 
 
-    def _base_convert(self, data, base=BASE10):
+    def _base_convert(self, data, base=BASE10, zero_padding=0):
         def f(data, base):
             if base == self.BASE16:
-                return hex(data)
+                padding = "#0%sx" % (zero_padding + 2)
+                return format(data, padding)
             elif base == self.BASE2:
-                return bin(data)
+                padding = "#0%sb" % (zero_padding * 4 + 2)
+                return format(data, padding)
             else:
                 return data
         
         if isinstance(data, list):
             return [f(i, base) for i in data]
-        elif isinstance(data, tuple):
-            return tuple([f(i, base) for i in data]) 
         else:
             return f(data, base)
 
