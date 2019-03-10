@@ -4,11 +4,9 @@ import sys
 
 def main():
     parser = optparse.OptionParser(
-        description="RFID cli tool for controlling 125Khz Chinese USB HID  Reader/Writer",
-        version="1.0",
+        description="RFID cli tool for reading and writing tags using 125Khz Chinese USB HID Reader/Writer",
+        version="v1.0 (March 10, 2019)",
     )
-
-    
 
     group = optparse.OptionGroup(parser, "Setup Device",
                                  "Device Setup and initialization")
@@ -33,15 +31,15 @@ def main():
     group.add_option('-r', '--read',
                      action="store_true", dest="read",
                      help="Read Tag", default=False)
-    
+
     parser.add_option_group(group)
 
     group = optparse.OptionGroup(parser, "Write Tags",
                                  "Write Customer ID and UID to a tag")
 
     group.add_option('-w', '--write',
-                      action="store_true", dest="write",
-                      help="Write Tag", default=False)
+                     action="store_true", dest="write",
+                     help="Write Tag", default=False)
 
     parser.add_option_group(group)
 
@@ -49,11 +47,10 @@ def main():
                                  "Read a tag and write its Customer ID and UID to another tag")
 
     group.add_option('-c', '--clone',
-                      action="store_true", dest="clone",
-                      help="Clone Tag", default=False)
-    
-    parser.add_option_group(group)
+                     action="store_true", dest="clone",
+                     help="Clone Tag", default=False)
 
+    parser.add_option_group(group)
 
     (options, args) = parser.parse_args(
         args=None if sys.argv[1:] else ['--help'])
