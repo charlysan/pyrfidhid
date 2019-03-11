@@ -260,6 +260,10 @@ class PayloadResponse(object):
     def get_raw_data(self, base=BASE10, zero_padding=2):
         r"""Gets the response raw data coming from the device"""
         return self._base_convert(self.data, base=base, zero_padding=zero_padding)
+    
+    def calculate_crc(self):
+        r"""Calculates payload data CRC Sum"""
+        return RfidHid._calculate_crc_sum(self.data[10:-2])
 
     def _base_convert(self, data, base=BASE10, zero_padding=0):
         def f(data, base):

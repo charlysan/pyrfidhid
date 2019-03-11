@@ -1,24 +1,27 @@
 from __future__ import print_function
 import optparse
 import sys
+import struct
 
 from time import sleep
 from rfidhid.core import RfidHid
 from rfidhid.core import PayloadResponse
+from ast import literal_eval as make_tuple
 
 
 def main():
     rfid = None
+    tag_type = RfidHid.TAG_EM4305
 
     options, args = parse_arguments()
 
-    vid = int(options.dev_vid, 16)
-    pid = int(options.dev_pid, 16)
+    dev_vid = int(options.dev_vid, 16)
+    dev_pid = int(options.dev_pid, 16)
     interval = float(options.interval)
 
     if options.init == True:
         if rfid is None:
-            rfid = connect(vid, pid)
+            rfid = connect(dev_vid, dev_pid)
         initialize_device(rfid)
 
     if options.read == True:
@@ -26,7 +29,7 @@ def main():
         uid_temp = None
 
         if rfid is None:
-            rfid = connect(vid, pid)
+            rfid = connect(dev_vid, dev_pid)
         while True:
             payload_response = rfid.read_tag()
             if payload_response.has_id_data():
@@ -35,14 +38,19 @@ def main():
                         base=PayloadResponse.BASE16)
                     cid = payload_response.get_tag_cid(
                         base=PayloadResponse.BASE16)
+                    w26 = payload_response.get_tag_w26(
+                        base=PayloadResponse.BASE16)
                 elif options.bin == True:
                     uid = payload_response.get_tag_uid(
                         base=PayloadResponse.BASE2)
                     cid = payload_response.get_tag_cid(
                         base=PayloadResponse.BASE2)
+                    w26 = payload_response.get_tag_w26(
+                        base=PayloadResponse.BASE2)
                 else:
                     uid = payload_response.get_tag_uid()
                     cid = payload_response.get_tag_cid()
+                    w26 = payload_response.get_tag_w26()
 
                 if options.single and uid is not None and cid is not None and uid == uid_temp and cid == cid_temp:
                     sleep(interval)
@@ -51,9 +59,15 @@ def main():
                 cid_temp = cid
                 uid_temp = uid
                 if options.cid == True:
-                    print("%s %s" % (cid, uid))
+                    if options.w26:
+                        print("%s %s" % (cid, w26))
+                    else:
+                        print("%s %s" % (cid, uid))
                 else:
-                    print(uid)
+                    if options.w26:
+                        print(w26)
+                    else:
+                        print(uid)
 
                 if options.beep == True:
                     rfid.beep()
@@ -65,6 +79,30 @@ def main():
                 break
             else:
                 sleep(interval)
+
+    if options.write == True:
+        if (options.w_cid and options.w_uid):
+            w_cid = parse_CID(options.w_cid)
+            w_uid = parse_UID(options.w_uid)
+        elif (options.w_cid and options.w_w26_fc and options.w_w26_cn) and options.w_uid is None:
+            w_cid = parse_CID(options.w_cid)
+            w26_fc = parse_w26_fc(options.w_w26_fc)
+            w26_cn = parse_w26_cn(options.w_w26_cn)
+
+            w_uid = w26_to_uid_int(w26_fc, w26_cn)
+        else:
+            print('Please set Tag CID and UID or CID and W26 (FC,CN)')
+            exit(-1)
+
+        if rfid is None:
+            rfid = connect(dev_vid, dev_pid)
+
+        if options.t5577:
+            tag_type = RfidHid.TAG_T5577
+
+        rfid.write_tag_from_cid_and_uid(w_cid, w_uid, tag_type=tag_type)
+        if options.beep == True:
+            rfid.beep(2)
 
 
 def parse_arguments():
@@ -80,11 +118,11 @@ def parse_arguments():
                      action="store_true", dest="init",
                      help="Initialize Device", default=False)
 
-    group.add_option('--dev_vid',
+    group.add_option('--devVid',
                      action="store", dest="dev_vid",
                      help="Set Device Vendor ID in Hexadecimal format [default: %default]", default='0xffff')
 
-    group.add_option('--dev_pid',
+    group.add_option('--devPid',
                      action="store", dest="dev_pid",
                      help="Set Device Product ID in Hexadecimal format [default: %default]", default='0x0035')
 
@@ -105,7 +143,11 @@ def parse_arguments():
                      action="store_true", dest="bin",
                      help="Binary output", default=False)
 
-    group.add_option('--cid',
+    group.add_option('--w26',
+                     action="store_true", dest="w26",
+                     help="W26 output", default=False)
+
+    group.add_option('--showcid',
                      action="store_true", dest="cid",
                      help="Print Customer ID", default=False)
 
@@ -129,6 +171,34 @@ def parse_arguments():
     group.add_option('-w', '--write',
                      action="store_true", dest="write",
                      help="Write Tag", default=False)
+    
+    group.add_option('-v', '--verify',
+                     action="store_true", dest="verify",
+                     help="Verify tag after writing", default=False)
+
+    group.add_option('--t5577',
+                     action="store_true", dest="t5577",
+                     help="Set tag type to T5577 [default: em4305]", default=False)
+
+    group.add_option('--autoinc',
+                     action="store", dest="autoinc",
+                     help="Auto increment UID on every write (for loop mode) [default: %default]", default=0)
+
+    group.add_option('--wcid',
+                     action="store", dest="w_cid",
+                     help="Set Customer ID")
+
+    group.add_option('--wuid',
+                     action="store", dest="w_uid",
+                     help="Set UID")
+
+    group.add_option('--ww26fc',
+                     action="store", dest="w_w26_fc",
+                     help="Set W26 Facility Code")
+
+    group.add_option('--ww26cn',
+                     action="store", dest="w_w26_cn",
+                     help="Set W26 Card Number")
 
     parser.add_option_group(group)
 
@@ -158,7 +228,6 @@ def parse_arguments():
 
 def connect(vid, pid):
     try:
-        # Try to open RFID device using default vid:pid (ffff:0035)
         return RfidHid(vid, pid)
     except Exception as e:
         print(e)
@@ -170,6 +239,53 @@ def initialize_device(rfid):
     rfid.init()
     sleep(1)
     print('Done!')
+
+
+def parse_id(id):
+    try:
+        if id.startswith("0x"):
+            return int(id, 16)
+        else:
+            return int(id, 10)
+    except ValueError:
+        print("Invalid input (%s). Please use integer or hex string (e.g. 0x4d)" % id)
+        exit(-1)
+
+
+def parse_CID(cid):
+    cid = parse_id(cid)
+    if cid > 0xff or cid < 0:
+        print('Invalid Customer ID (%s)' % cid)
+        exit(-1)
+    return cid
+
+
+def parse_UID(uid):
+    uid = parse_id(uid)
+    if uid > 0xffffffff or uid < 0:
+        print('Invalid UID (%s)' % uid)
+        exit(-1)
+    return uid
+
+
+def parse_w26_fc(fc):
+    fc = parse_id(fc)
+    if fc > 0xff or fc < 0:
+        print('Invalid W26 Facility Code (%s)' % fc)
+        exit(-1)
+    return fc
+
+
+def parse_w26_cn(cn):
+    cn = parse_id(cn)
+    if cn > 0xffffff or cn < 0:
+        print('Invalid W26 Card Number (%s)' % cn)
+        exit(-1)
+    return cn
+
+
+def w26_to_uid_int(fc, cn):
+    return struct.unpack('>I', bytearray([0] + [fc] + list(bytearray(struct.pack('>H', cn)))))[0]
 
 
 if __name__ == "__main__":

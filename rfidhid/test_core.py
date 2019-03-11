@@ -113,3 +113,8 @@ class TestPayloadResponse(unittest.TestCase):
                     '0b00000000', '0b00000110', '0b00000000', '0b01001101', '0b01001001', '0b10010110', '0b00000010', '0b11010010', '0b01000100', '0b00000011']
         actual = self.payload.get_raw_data(base=PayloadResponse.BASE2)
         self.assertEqual(expected, actual)
+    
+    def test_calculate_crc(self):
+        expected = 68
+        actual = self.payload.calculate_crc()
+        self.assertEqual(expected, actual)
