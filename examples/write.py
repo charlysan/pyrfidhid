@@ -70,7 +70,7 @@ def main():
                 uid_temp = uid
 
                 rfid.write_tag_from_cid_and_uid(CID, UID)
-                sleep(0.1) # you cannot immediately read after a write operation
+                sleep(0.2) # you cannot immediately read after a write operation
 
                 payload_response_w = rfid.read_tag()
                 # Write verification

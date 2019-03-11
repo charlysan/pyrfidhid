@@ -70,6 +70,7 @@ def main():
                         print(uid)
 
                 if options.beep == True:
+                    sleep(0.1) # wait before sending beep
                     rfid.beep()
             else:
                 cid_temp = None
@@ -81,6 +82,11 @@ def main():
                 sleep(interval)
 
     if options.write == True:
+        # TODO: implement verify and loop
+        # if options.verify:
+        #     payload_response = rfid.read_tag()
+        #     uid = payload_response.get_tag_uid()
+        #     sleep(0.2) # wait before writing
         if (options.w_cid and options.w_uid):
             w_cid = parse_CID(options.w_cid)
             w_uid = parse_UID(options.w_uid)
@@ -102,6 +108,7 @@ def main():
 
         rfid.write_tag_from_cid_and_uid(w_cid, w_uid, tag_type=tag_type)
         if options.beep == True:
+            sleep(0.1) # wait before sending beep
             rfid.beep(2)
 
 
