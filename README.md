@@ -69,3 +69,5 @@ This is still in beta, and there are a couple of "to-do's":
 - Support [T5577](http://www.xccrfid.com/uploadfile/downloads/T5577.pdf) tags.
 - Support write protection.
 - Implement a console tool capable of reading, writing and cloning tags with the same ease as `IDRW V3` tool.
+
+An Android tool similar to `IDRW V3`can be found [here](https://github.com/NiceLabs/usb-125khz-idrw)
