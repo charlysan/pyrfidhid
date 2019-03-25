@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 from __future__ import print_function
-import optparse
+import argparse
 import sys
 import struct
 
@@ -33,224 +33,230 @@ def main():
     rfid = None
     tag_type = RfidHid.TAG_EM4305
 
-    options, args = parse_arguments()
+    args = parse_arguments()
 
-    dev_vid = int(options.dev_vid, 16)
-    dev_pid = int(options.dev_pid, 16)
-    interval = float(options.interval)
+    usb_vid = args.usb_vid
+    usb_pid = args.usb_pid
+    loop_interval = float(args.loop_interval)
 
-    if options.init == True:
+    if args.init == True:
         if rfid is None:
-            rfid = connect(dev_vid, dev_pid)
+            rfid = connect(usb_vid, usb_pid)
         initialize_device(rfid)
 
-    if options.read == True:
+    if args.read == True:
         cid_temp = None
         uid_temp = None
 
         if rfid is None:
-            rfid = connect(dev_vid, dev_pid)
+            rfid = connect(usb_vid, usb_pid)
         while True:
             payload_response = rfid.read_tag()
             if payload_response.has_id_data():
-                if options.hex == True:
-                    uid = payload_response.get_tag_uid(
-                        base=PayloadResponse.BASE16)
-                    cid = payload_response.get_tag_cid(
-                        base=PayloadResponse.BASE16)
-                    w26 = payload_response.get_tag_w26(
-                        base=PayloadResponse.BASE16)
-                elif options.bin == True:
-                    uid = payload_response.get_tag_uid(
-                        base=PayloadResponse.BASE2)
-                    cid = payload_response.get_tag_cid(
-                        base=PayloadResponse.BASE2)
-                    w26 = payload_response.get_tag_w26(
-                        base=PayloadResponse.BASE2)
-                else:
-                    uid = payload_response.get_tag_uid()
-                    cid = payload_response.get_tag_cid()
-                    w26 = payload_response.get_tag_w26()
+                uid, cid, w26 = parse_payload_response(
+                    payload_response, args.base)
 
-                if options.single and uid is not None and cid is not None and uid == uid_temp and cid == cid_temp:
-                    sleep(interval)
+                if args.single and uid is not None and cid is not None and uid == uid_temp and cid == cid_temp:
+                    sleep(loop_interval)
                     continue
 
                 cid_temp = cid
                 uid_temp = uid
-                if options.cid == True:
-                    if options.w26:
+
+                if args.cid == True:
+                    if args.w26:
                         print("%s %s" % (cid, w26))
                     else:
                         print("%s %s" % (cid, uid))
                 else:
-                    if options.w26:
+                    if args.w26:
                         print(w26)
                     else:
                         print(uid)
 
-                if options.beep == True:
-                    sleep(0.1) # wait before sending beep
+                if args.beep == True:
+                    sleep(0.2)  # wait before sending beep
                     rfid.beep()
             else:
                 cid_temp = None
                 uid_temp = None
 
-            if options.loop == False:
+            if args.loop == False:
                 break
             else:
-                sleep(interval)
+                sleep(loop_interval)
 
-    if options.write == True:
-        # TODO: implement verify and loop
-        # if options.verify:
-        #     payload_response = rfid.read_tag()
-        #     uid = payload_response.get_tag_uid()
-        #     sleep(0.2) # wait before writing
-        if (options.w_cid and options.w_uid):
-            w_cid = parse_CID(options.w_cid)
-            w_uid = parse_UID(options.w_uid)
-        elif (options.w_cid and options.w_w26_fc and options.w_w26_cn) and options.w_uid is None:
-            w_cid = parse_CID(options.w_cid)
-            w26_fc = parse_w26_fc(options.w_w26_fc)
-            w26_cn = parse_w26_cn(options.w_w26_cn)
-
-            w_uid = w26_to_uid_int(w26_fc, w26_cn)
-        else:
-            print('Please set Tag CID and UID or CID and W26 (FC,CN)')
-            exit(-1)
+    if args.write == True:
+        cid_temp = None
+        uid_temp = None
 
         if rfid is None:
-            rfid = connect(dev_vid, dev_pid)
+            rfid = connect(usb_vid, usb_pid)
 
-        if options.t5577:
-            tag_type = RfidHid.TAG_T5577
+        if (args.w_cid and args.w_uid):
+            w_cid = parse_CID(args.w_cid)
+            w_uid = parse_UID(args.w_uid)
 
-        rfid.write_tag_from_cid_and_uid(w_cid, w_uid, tag_type=tag_type)
-        if options.beep == True:
-            sleep(0.1) # wait before sending beep
-            rfid.beep(2)
+            # store first value for auto increment
+            uid_first = w_uid
+        else:
+            print('Please set Tag CID and UID')
+            exit(-1)
+
+        while True:
+            payload_response = rfid.read_tag()
+            if payload_response.has_id_data():
+                uid = payload_response.get_tag_uid()
+                # Avoid processing the same tag (CID/UID) more than once in a row
+                if (uid != uid_temp and uid != uid_first) or args.overwrite is True:
+                    uid_temp = uid
+
+                    if args.t5577:
+                        tag_type = RfidHid.TAG_T5577
+
+                    rfid.write_tag_from_cid_and_uid(
+                        w_cid, w_uid, tag_type=tag_type)
+
+                    # wait before reading or beeping
+                    sleep(0.2)
+
+                    if args.beep == True:
+                        rfid.beep(2)
+
+                    # Verify write operation
+                    if args.verify:
+                        payload_response = rfid.read_tag()
+                        uid = payload_response.get_tag_uid()
+                        cid = payload_response.get_tag_cid()
+
+                        if uid == w_uid and cid == w_cid:
+                            print('Write OK!')
+                            print(str('%s %s') % (cid, uid))
+                        else:
+                            print('Write Error!')
+
+                    # auto increment
+                    if args.auto_increment > 0:
+                        w_uid = w_uid + args.auto_increment
+                        uid_temp = uid_temp + args.auto_increment
+            else:
+                uid_temp = None
+                if args.loop is False:
+                    print('Please hold a tag close to the device.')
+
+            if args.loop == False:
+                break
+            else:
+                sleep(loop_interval)
+
+
+def parse_payload_response(payload_response, base):
+    if base == 'hex':
+        uid = payload_response.get_tag_uid(
+            base=PayloadResponse.BASE16)
+        cid = payload_response.get_tag_cid(
+            base=PayloadResponse.BASE16)
+        w26 = payload_response.get_tag_w26(
+            base=PayloadResponse.BASE16)
+    elif base == 'bin':
+        uid = payload_response.get_tag_uid(
+            base=PayloadResponse.BASE2)
+        cid = payload_response.get_tag_cid(
+            base=PayloadResponse.BASE2)
+        w26 = payload_response.get_tag_w26(
+            base=PayloadResponse.BASE2)
+    else:
+        uid = payload_response.get_tag_uid()
+        cid = payload_response.get_tag_cid()
+        w26 = payload_response.get_tag_w26()
+
+    # simplify w26 output
+    w26 = str('%s,%s' % w26)
+
+    return uid, cid, w26
 
 
 def parse_arguments():
-    parser = optparse.OptionParser(
-        description="RFID cli tool for reading and writing tags using 125Khz Chinese USB HID Reader/Writer",
+    parser = argparse.ArgumentParser(
+        description="RFID cli tool for reading and writing tags IDs using 125Khz Chinese USB HID Reader/Writer",
         version="v1.0 (March 10, 2019)",
     )
 
-    group = optparse.OptionGroup(parser, "Setup Device",
-                                 "Device Setup and initialization")
+    parser.add_argument('-i',
+                        action="store_true", dest="init",
+                        help="Initialize Device", default=False)
 
-    group.add_option('-i', '--init',
-                     action="store_true", dest="init",
-                     help="Initialize Device", default=False)
+    parser.add_argument('--usb-vid',
+                        action='store', dest='usb_vid', metavar='VID', type=int,
+                        help="Set Device Vendor ID in hex format [default: %(default)#x]", default=0xffff
+                        )
 
-    group.add_option('--devVid',
-                     action="store", dest="dev_vid",
-                     help="Set Device Vendor ID in Hexadecimal format [default: %default]", default='0xffff')
+    parser.add_argument('--usb-pid',
+                        action="store", dest="usb_pid", metavar='PID', type=int,
+                        help="Set Device Product ID in hex format [default: %(default)#x] ", default=0x0035)
 
-    group.add_option('--devPid',
-                     action="store", dest="dev_pid",
-                     help="Set Device Product ID in Hexadecimal format [default: %default]", default='0x0035')
+    parser.add_argument('-r',
+                        action="store_true", dest="read",
+                        help="Read Tag", default=False)
 
-    parser.add_option_group(group)
+    parser.add_argument('-b',
+                        action="store", dest="base", type=str, metavar='BASE',
+                        help="Output base type (dec, hex, bin) [default: %(default)#s]", default='dec')
 
-    group = optparse.OptionGroup(parser, "Read Tags",
-                                 "Read a tag and get its Customer ID and UID")
+    parser.add_argument('--w26',
+                        action="store_true", dest="w26",
+                        help="W26 output", default=False)
 
-    group.add_option('-r', '--read',
-                     action="store_true", dest="read",
-                     help="Read Tag", default=False)
+    parser.add_argument('--showcid',
+                        action="store_true", dest="cid",
+                        help="Print Customer ID", default=False)
 
-    group.add_option('--hex',
-                     action="store_true", dest="hex",
-                     help="Hexadecimal output", default=False)
+    parser.add_argument('--loop',
+                        action="store_true", dest="loop",
+                        help="Enable loop mode for reading/cloning tags", default=False)
 
-    group.add_option('--bin',
-                     action="store_true", dest="bin",
-                     help="Binary output", default=False)
+    parser.add_argument('--single',
+                        action="store_true", dest="single",
+                        help="If loop mode is enabled do not print same tag more than once", default=False)
 
-    group.add_option('--w26',
-                     action="store_true", dest="w26",
-                     help="W26 output", default=False)
+    parser.add_argument('-l', metavar='INTERVAL',
+                        action="store", dest="loop_interval",
+                        help="Set Read loop_interval in seconds [default: %(default)#2f]", default=0.1)
 
-    group.add_option('--showcid',
-                     action="store_true", dest="cid",
-                     help="Print Customer ID", default=False)
+    parser.add_argument('-w',
+                        action="store_true", dest="write",
+                        help="Write Tag", default=False)
 
-    group.add_option('--loop',
-                     action="store_true", dest="loop",
-                     help="Enable loop mode for reading/cloning tags", default=False)
+    parser.add_argument('w_cid', type=str, metavar='CID', default=None,
+                        nargs='?', help=" Tag's Customer ID")
 
-    group.add_option('--single',
-                     action="store_true", dest="single",
-                     help="If loop mode is enabled do not print same tag more than once", default=False)
+    parser.add_argument('w_uid', type=str, metavar='UID', default=None,
+                        nargs='?', help=" Tag's  UID")
 
-    group.add_option('--interval',
-                     action="store", dest="interval",
-                     help="Set Read Interval in seconds [default: %default]", default=0.1)
+    parser.add_argument('--t5577',
+                        action="store_true", dest="t5577",
+                        help="Set tag type to T5577 [default: em4305]", default=False)
 
-    parser.add_option_group(group)
+    parser.add_argument('--noverify',
+                        action="store_false", dest="verify",
+                        help="Do not verify tag after writing", default=True)
 
-    group = optparse.OptionGroup(parser, "Write Tags",
-                                 "Write Customer ID and UID to a tag")
+    parser.add_argument('-a', metavar='INCREMENT', type=int,
+                        action="store", dest="auto_increment",
+                        help="Auto increment UID on every write (loop mode) [default: %(default)#d]", default=0)
 
-    group.add_option('-w', '--write',
-                     action="store_true", dest="write",
-                     help="Write Tag", default=False)
-    
-    group.add_option('-v', '--verify',
-                     action="store_true", dest="verify",
-                     help="Verify tag after writing", default=False)
+    parser.add_argument('--nobeep',
+                        action="store_false", dest="beep",
+                        help="Disable Beep", default=True)
 
-    group.add_option('--t5577',
-                     action="store_true", dest="t5577",
-                     help="Set tag type to T5577 [default: em4305]", default=False)
+    parser.add_argument('-o',
+                        action="store_true", dest="overwrite",
+                        help="Force overwrite", default=False)
 
-    group.add_option('--autoinc',
-                     action="store", dest="autoinc",
-                     help="Auto increment UID on every write (for loop mode) [default: %default]", default=0)
-
-    group.add_option('--wcid',
-                     action="store", dest="w_cid",
-                     help="Set Customer ID")
-
-    group.add_option('--wuid',
-                     action="store", dest="w_uid",
-                     help="Set UID")
-
-    group.add_option('--ww26fc',
-                     action="store", dest="w_w26_fc",
-                     help="Set W26 Facility Code")
-
-    group.add_option('--ww26cn',
-                     action="store", dest="w_w26_cn",
-                     help="Set W26 Card Number")
-
-    parser.add_option_group(group)
-
-    group = optparse.OptionGroup(parser, "Clone Tags",
-                                 "Read a tag and write its Customer ID and UID to another tag")
-
-    group.add_option('-c', '--clone',
-                     action="store_true", dest="clone",
-                     help="Clone Tag", default=False)
-
-    parser.add_option_group(group)
-
-    group = optparse.OptionGroup(parser, "General options",
-                                 "General purposes options")
-
-    group.add_option('--nobeep',
-                     action="store_false", dest="beep",
-                     help="Disable Beep", default=True)
-
-    parser.add_option_group(group)
-
-    (options, args) = parser.parse_args(
+    args = parser.parse_args(
         args=None if sys.argv[1:] else ['--help'])
 
-    return options, args
+    return args
 
 
 def connect(vid, pid):

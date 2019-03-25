@@ -14,4 +14,4 @@ setup(name='pyrfidhid',
       author_email='chrlysn0@gmail.com',
       license='MIT',
       packages=find_packages(),
-      install_requires=['pyusb ~= 1.0', 'mock ~= 2.0'])
+      install_requires=['pyusb ~= 1.0', 'argparse ~= 1.4.0', 'mock ~= 2.0'])
