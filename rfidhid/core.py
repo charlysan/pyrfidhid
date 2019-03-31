@@ -264,6 +264,12 @@ class PayloadResponse(object):
     def calculate_crc(self):
         r"""Calculates payload data CRC Sum"""
         return RfidHid._calculate_crc_sum(self.data[10:-2])
+    
+    def is_equal(self, payload):
+        r"""check is payload is equal to other payload"""
+        if isinstance(payload, PayloadResponse) and self.cid == payload.cid and self.uid == payload.uid and self.crc == payload.crc:
+            return True
+        return False
 
     def _base_convert(self, data, base=BASE10, zero_padding=0):
         def f(data, base):
