@@ -32,8 +32,8 @@ from transitions import Machine
 
 class RfidCli(object):
 
-    states = ['start', 'init', 'read', 'print',
-              'write', 'verify', 'print', 'sleep', 'exit']
+    states = ['start', 'init', 'read', 'print', 'write',
+              'clone', 'increment', 'verify', 'exit', 'prompt']
     rfid = None
     machine = None
     payload_response_temp = None
@@ -44,7 +44,8 @@ class RfidCli(object):
 
         self.rfid = self.connect(self.args.usb_vid, self.args.usb_pid)
 
-        self.machine = Machine(model=self, states=self.states, initial='start')
+        self.machine = Machine(
+            model=self, states=self.states, initial='start', send_event=True)
 
         # Initialize Device
         self.machine.add_transition(
@@ -60,35 +61,123 @@ class RfidCli(object):
         self.machine.add_transition(
             trigger='next', source='print', dest='exit', after='exit', conditions=['is_read'], unless=['is_loop'])
         self.machine.add_transition(
-            trigger='next', source='print', dest='sleep', after='sleep', conditions=['is_read', 'is_loop'])
-        self.machine.add_transition(
-            trigger='next', source='sleep', dest='read', after='read', conditions=['is_read', 'is_loop'])
+            trigger='next', source='print', dest='read', before='sleep', after=['read'], conditions=['is_read', 'is_loop'])
 
         # Write Tag
+        self.machine.add_transition(
+            trigger='next', source='start', dest='write', after='write', conditions=['is_write'], unless=['is_read_before_write'])
+        self.machine.add_transition(
+            trigger='next', source='start', dest='read', after='read', conditions=['is_write', 'is_read_before_write'])
+        self.machine.add_transition(
+            trigger='next', source='read', dest='write', before='sleep', after='write', conditions=['is_write', 'is_read_before_write', 'has_id_data'])
+        self.machine.add_transition(
+            trigger='next', source='read', dest='read', before='sleep', after='read', conditions=['is_write', 'is_read_before_write'], unless=['has_id_data'])
+        self.machine.add_transition(
+            trigger='next', source='write', dest='exit', after='exit', conditions=['is_write'], unless=['is_loop', 'is_verify'])
+        self.machine.add_transition(
+            trigger='next', source='write', dest='write', before='sleep', after=['write', 'beep', 'increment'], conditions=['is_write', 'is_loop'], unless=['is_verify'])
+        self.machine.add_transition(
+            trigger='next', source='write', dest='verify', before='sleep', after=['verify','beep', 'increment'], conditions=['is_write', 'is_verify'])
+        self.machine.add_transition(
+            trigger='next', source='verify', dest='exit', after=['beep','exit'], conditions=['is_write', 'is_verify'], unless=['is_loop'])
+        self.machine.add_transition(
+            trigger='next', source='verify', dest='read', after=['sleep','read'], conditions=['is_write', 'is_loop', 'is_verify'])
 
-    def is_init(self):
+        # Clone Tag
+        self.machine.add_transition(
+            trigger='next', source='start', dest='read', after='read', conditions=['is_clone'])
+        self.machine.add_transition(
+            trigger='next', source='read', dest='read', before='sleep', after='read', conditions=['is_clone'], unless='has_id_data')
+        self.machine.add_transition(
+            trigger='next', source='read', dest='prompt', after=['beep','prompt'], conditions=['is_clone', 'has_id_data'])
+        self.machine.add_transition(
+            trigger='next', source='prompt', dest='read', after=['read', 'switch_to_write_condition'], conditions=['is_clone'])
+
+    def is_init(self, event):
         return self.args.init
 
-    def is_read(self):
+    def is_read(self, event):
         return self.args.read
 
-    def is_loop(self):
+    def is_write(self, event):
+        return self.args.write
+
+    def is_clone(self, event):
+        return self.args.clone
+
+    def is_loop(self, event):
         return self.args.loop
 
-    def is_single(self):
+    def is_verify(self, event):
+        return self.args.verify
+
+    def is_auto_increment(self, event):
+        return True if self.args.auto_increment > 0 else False
+
+    def is_read_before_write(self, event):
+        return self.args.read_before_write
+
+    def is_single(self, event):
         return self.args.single
 
-    def is_beep(self):
+    def is_beep(self, event):
         return self.args.beep
 
-    def has_id_data(self):
+    def has_id_data(self, event):
         return self.payload_response.has_id_data()
 
-    def sleep(self):
-        sleep(self.args.loop_interval)
+    def sleep(self, event):
+        delay = self.args.write_interval
+        if event.transition.source != 'write' or event.transition.source != 'verify':
+            delay = self.args.read_interval
 
-    def read(self):
+        sleep(delay)
+
+    def switch_to_write_condition(self, event):
+        self.args.clone = False
+        self.args.read = False
+        self.args.write = True
+
+    def read(self, event):
         self.payload_response = self.rfid.read_tag()
+
+    def write(self, event):
+
+        if (self.w_cid is None or self.w_uid is None):
+            print('Please set Tag CID and UID')
+            exit(-1)
+
+        self.rfid.write_tag_from_cid_and_uid(
+            self.w_cid, self.w_uid, tag_type=self.tag_type)
+
+        # if self.is_beep(None):
+        #     # wait before sending beep
+        #     sleep(0.2)
+        #     self.rfid.beep(2)
+
+    def verify(self, event):
+        payload_response = self.rfid.read_tag()
+        uid = payload_response.get_tag_uid()
+        cid = payload_response.get_tag_cid()
+
+        if cid != self.w_cid or uid != self.w_uid:
+            print('Write Error!')
+        else:
+            print(str('Write OK! %s %s') % (cid, uid))
+
+    def increment(self, event):
+        self.w_uid = self.w_uid + self.args.auto_increment
+
+    def prompt(self, event): 
+        self.w_cid = self.payload_response.get_tag_cid()
+        self.w_uid = self.payload_response.get_tag_uid()
+
+        print("Read done! %s %s" % (self.w_cid, self.w_uid))
+        # if self.args.beep:
+        #     # wait before sending beep
+        #     sleep(0.2)
+        #     self.rfid.beep()
+        raw_input("Move source tag away from reader and press any key...")
 
     def connect(self, vid, pid):
         try:
@@ -96,11 +185,18 @@ class RfidCli(object):
         except Exception as e:
             print(e)
             exit()
+    
+    def beep(self, event):
+        if self.args.beep:
+            times = 1 if event.transition.source == 'print' or event.transition.dest == 'prompt' else 2
+            # wait before sending beep
+            sleep(0.2)
+            self.rfid.beep(times)
 
-    def exit(self):
+    def exit(self, event):
         exit()
 
-    def initialize(self):
+    def initialize(self, event):
         print('Initializing device...')
         self.rfid.init()
         sleep(1)
@@ -132,11 +228,11 @@ class RfidCli(object):
 
         return uid, cid, w26
 
-    def print(self):
-        if self.has_id_data() is False:
+    def print(self, event):
+        if self.payload_response.has_id_data() is False:
             return
 
-        if self.payload_response.is_equal(self.payload_response_temp) and self.is_single():
+        if self.payload_response.is_equal(self.payload_response_temp) and self.args.single:
             return
 
         uid, cid, w26 = self.parse_payload_response(
@@ -150,10 +246,34 @@ class RfidCli(object):
             print(uid)
 
         self.payload_response_temp = self.payload_response
-        if self.is_beep():
+        if self.args.beep:
             # wait before sending beep
             sleep(0.2)
             self.rfid.beep()
+
+    def parse_CID(self, cid):
+        cid = self.parse_id(cid)
+        if cid > 0xff or cid < 0:
+            print('Invalid Customer ID (%s)' % cid)
+            exit(-1)
+        return cid
+
+    def parse_UID(self, uid):
+        uid = self.parse_id(uid)
+        if uid > 0xffffffff or uid < 0:
+            print('Invalid UID (%s)' % uid)
+            exit(-1)
+        return uid
+
+    def parse_id(self, id):
+        try:
+            if id.startswith("0x"):
+                return int(id, 16)
+            else:
+                return int(id, 10)
+        except ValueError:
+            print("Invalid input (%s). Please use integer or hex string (e.g. 0x4d)" % id)
+            exit(-1)
 
     def parse_arguments(self):
         parser = argparse.ArgumentParser(
@@ -198,13 +318,21 @@ class RfidCli(object):
                             action="store_true", dest="single",
                             help="If loop mode is enabled do not print same tag more than once", default=False)
 
-        parser.add_argument('-l', metavar='INTERVAL',
-                            action="store", dest="loop_interval", type=float,
-                            help="Set Read loop interval in seconds [default: %(default)#2f]", default=0.1)
+        parser.add_argument('--read-interval', metavar='INTERVAL',
+                            action="store", dest="read_interval", type=float,
+                            help="Set Read loop interval in seconds [default: %(default)#2f]", default=0.2)
+
+        parser.add_argument('--write-interval', metavar='INTERVAL',
+                            action="store", dest="write_interval", type=float,
+                            help="Set Write loop interval in seconds [default: %(default)#2f]", default=1)
 
         parser.add_argument('-w',
                             action="store_true", dest="write",
                             help="Write Tag", default=False)
+
+        parser.add_argument('-c',
+                            action="store_true", dest="clone",
+                            help="Clone Tag", default=False)
 
         parser.add_argument('w_cid', type=str, metavar='CID', default=None,
                             nargs='?', help=" Tag's Customer ID")
@@ -220,13 +348,17 @@ class RfidCli(object):
                             action="store_false", dest="verify",
                             help="Do not verify tag after writing", default=True)
 
+        parser.add_argument('--no-read-before-write',
+                            action="store_false", dest="read_before_write",
+                            help="Do not read tag before trying to write it", default=True)
+
         parser.add_argument('-a', metavar='VALUE', type=int,
                             action="store", dest="auto_increment",
                             help="Auto increment UID on every write (loop mode) [default: %(default)#d]", default=0)
 
-        parser.add_argument('--nobeep',
-                            action="store_false", dest="beep",
-                            help="Disable Beep", default=True)
+        parser.add_argument('--beep',
+                            action="store_true", dest="beep",
+                            help="Enable Beep", default=False)
 
         parser.add_argument('-o',
                             action="store_true", dest="overwrite",
@@ -234,6 +366,13 @@ class RfidCli(object):
 
         args = parser.parse_args(
             args=None if sys.argv[1:] else ['--help'])
+
+        if (args.read and args.write) or (args.read and args.clone) or (args.write and args.clone):
+            args = parser.parse_args(['--help'])
+
+        if args.write:
+            self.w_cid = self.parse_CID(args.w_cid)
+            self.w_uid = self.parse_UID(args.w_uid)
 
         return args
 
@@ -244,194 +383,5 @@ def main():
     while True:
         rfid_cli.next()
 
-    # if args.init:
-    #     initialize_device(rfid)
-
-    # cid_temp = None
-    # uid_temp = None
-
-    # while True:
-    #     # Read a Tag
-    #     if args.read:
-    #         payload_response = rfid.read_tag()
-    #         if payload_response.has_id_data() is False:
-    #             cid_temp = uid_temp = None
-
-    #         uid, cid, w26 = parse_payload_response(payload_response, args.base)
-
-    #         cid_temp = cid
-    #         uid_temp = uid
-
-    #         if args.w26:
-    #             uid = w26
-
-    #         if args.cid:
-    #             print("%s %s" % (cid, uid))
-    #         else:
-    #             print(uid)
-
-    #         if args.beep:
-    #             # wait before sending beep
-    #             sleep(0.2)
-    #             rfid.beep()
-
-    #         # if args.single is False and uid is not None and cid is not None and uid == uid_temp and cid == cid_temp:
-    #         if args.single is False and (cid, uid) == (cid_temp, uid_temp):
-    #             sleep(args.loop_interval)
-    #             continue
-
-    #         if args.loop == False:
-    #             sleep(args.loop_interval)
-    #             break
-
-        # Write a Tag
-        # elif args.write:
-        #     cid_temp = uid_temp = None
-
-        #     if (args.w_cid is None or args.w_uid is None):
-        #         print('Please set Tag CID and UID')
-        #         exit(-1)
-
-        #     w_cid = parse_CID(args.w_cid)
-        #     w_uid = parse_UID(args.w_uid)
-
-        #     # store initial value for auto increment
-        #     uid_first = w_uid
-
-        #     payload_response = rfid.read_tag()
-        #     if payload_response.has_id_data() is False:
-        #         uid_temp = None
-        #         if args.loop is False:
-        #             print('Please hold a tag close to the device.')
-
-        #     if args.loop == False:
-        #         sleep(args.loop_interval)
-        #         break
-
-        #     uid = payload_response.get_tag_uid()
-        #     # Avoid processing the same tag (CID/UID) more than once in a row
-        #     # if (uid != uid_temp and uid != uid_first) or args.overwrite is True:
-        #     if (uid == uid_temp or uid == uid_first) or args.overwrite is False:
-        #         continue
-
-        #     uid_temp = uid
-
-        #     rfid.write_tag_from_cid_and_uid(
-        #         w_cid, w_uid, tag_type=tag_type)
-
-        #     # wait before reading or beeping
-        #     sleep(0.2)
-
-        #     if args.beep == True:
-        #         rfid.beep(2)
-
-        #     # Verify write operation
-        #     if args.verify:
-        #         payload_response = rfid.read_tag()
-        #         uid = payload_response.get_tag_uid()
-        #         cid = payload_response.get_tag_cid()
-
-        #         if (cid, uid) != (w_cid, w_uid):
-        #             print('Write Error!')
-        #             continue
-
-        #         print('Write OK!')
-        #         print(str('%s %s') % (cid, uid))
-
-        #     # auto increment
-        #     if args.auto_increment > 0:
-        #         w_uid = w_uid + args.auto_increment
-        #         uid_temp = uid_temp + args.auto_increment
-
-        # else:
-        #     break
-
-
-# def parse_payload_response(payload_response, base):
-#     if base == 'hex':
-#         uid = payload_response.get_tag_uid(
-#             base=PayloadResponse.BASE16)
-#         cid = payload_response.get_tag_cid(
-#             base=PayloadResponse.BASE16)
-#         w26 = payload_response.get_tag_w26(
-#             base=PayloadResponse.BASE16)
-#     elif base == 'bin':
-#         uid = payload_response.get_tag_uid(
-#             base=PayloadResponse.BASE2)
-#         cid = payload_response.get_tag_cid(
-#             base=PayloadResponse.BASE2)
-#         w26 = payload_response.get_tag_w26(
-#             base=PayloadResponse.BASE2)
-#     else:
-#         uid = payload_response.get_tag_uid()
-#         cid = payload_response.get_tag_cid()
-#         w26 = payload_response.get_tag_w26()
-
-#     # simplify w26 output
-#     if w26:
-#         w26 = str('%s,%s' % (w26))
-
-#     return uid, cid, w26
-
-
-# def connect(vid, pid):
-#     try:
-#         return RfidHid(vid, pid)
-#     except Exception as e:
-#         print(e)
-#         exit()
-
-
-# def initialize_device(rfid):
-#     print('Initializing device...')
-#     rfid.init()
-#     sleep(1)
-#     print('Done!')
-
-
-# def parse_id(id):
-#     try:
-#         if id.startswith("0x"):
-#             return int(id, 16)
-#         else:
-#             return int(id, 10)
-#     except ValueError:
-#         print("Invalid input (%s). Please use integer or hex string (e.g. 0x4d)" % id)
-#         exit(-1)
-
-
-# def parse_CID(cid):
-#     cid = parse_id(cid)
-#     if cid > 0xff or cid < 0:
-#         print('Invalid Customer ID (%s)' % cid)
-#         exit(-1)
-#     return cid
-
-
-# def parse_UID(uid):
-#     uid = parse_id(uid)
-#     if uid > 0xffffffff or uid < 0:
-#         print('Invalid UID (%s)' % uid)
-#         exit(-1)
-#     return uid
-
-
-# def parse_w26_fc(fc):
-#     fc = parse_id(fc)
-#     if fc > 0xff or fc < 0:
-#         print('Invalid W26 Facility Code (%s)' % fc)
-#         exit(-1)
-#     return fc
-
-
-# def parse_w26_cn(cn):
-#     cn = parse_id(cn)
-#     if cn > 0xffffff or cn < 0:
-#         print('Invalid W26 Card Number (%s)' % cn)
-#         exit(-1)
-#     return cn
-
-# def w26_to_uid_int(fc, cn):
-#     return struct.unpack('>I', bytearray([0] + [fc] + list(bytearray(struct.pack('>H', cn)))))[0]
 if __name__ == "__main__":
     main()
