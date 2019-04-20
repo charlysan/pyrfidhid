@@ -33,7 +33,7 @@ from transitions import Machine
 class RfidCli(object):
 
     states = ['start', 'init', 'read', 'print', 'write',
-              'clone', 'increment', 'verify', 'exit', 'prompt']
+              'clone', 'verify', 'exit', 'prompt']
     rfid = None
     machine = None
     payload_response_temp = None
@@ -77,11 +77,11 @@ class RfidCli(object):
         self.machine.add_transition(
             trigger='next', source='write', dest='write', before='sleep', after=['write', 'beep', 'increment'], conditions=['is_write', 'is_loop'], unless=['is_verify'])
         self.machine.add_transition(
-            trigger='next', source='write', dest='verify', before='sleep', after=['verify','beep', 'increment'], conditions=['is_write', 'is_verify'])
+            trigger='next', source='write', dest='verify', before='sleep', after=['verify', 'beep', 'increment'], conditions=['is_write', 'is_verify'])
         self.machine.add_transition(
-            trigger='next', source='verify', dest='exit', after=['beep','exit'], conditions=['is_write', 'is_verify'], unless=['is_loop'])
+            trigger='next', source='verify', dest='exit', after=['beep', 'exit'], conditions=['is_write', 'is_verify'], unless=['is_loop'])
         self.machine.add_transition(
-            trigger='next', source='verify', dest='read', after=['sleep','read'], conditions=['is_write', 'is_loop', 'is_verify'])
+            trigger='next', source='verify', dest='read', after=['sleep', 'read'], conditions=['is_write', 'is_loop', 'is_verify'])
 
         # Clone Tag
         self.machine.add_transition(
@@ -89,7 +89,7 @@ class RfidCli(object):
         self.machine.add_transition(
             trigger='next', source='read', dest='read', before='sleep', after='read', conditions=['is_clone'], unless='has_id_data')
         self.machine.add_transition(
-            trigger='next', source='read', dest='prompt', after=['beep','prompt'], conditions=['is_clone', 'has_id_data'])
+            trigger='next', source='read', dest='prompt', after=['beep', 'prompt'], conditions=['is_clone', 'has_id_data'])
         self.machine.add_transition(
             trigger='next', source='prompt', dest='read', after=['read', 'switch_to_write_condition'], conditions=['is_clone'])
 
@@ -127,22 +127,23 @@ class RfidCli(object):
         return self.payload_response.has_id_data()
 
     def sleep(self, event):
-        delay = self.args.write_interval
-        if event.transition.source != 'write' or event.transition.source != 'verify':
-            delay = self.args.read_interval
-
+        delay = self.args.read_interval
+        if (event.transition.source == 'write' and event.transition.dest == 'write') or (event.transition.source == 'verify' and event.transition.dest == 'read'):
+            delay = self.args.write_interval
         sleep(delay)
 
     def switch_to_write_condition(self, event):
+        r"""Used to switch from `clone to `write` condition"""
         self.args.clone = False
         self.args.read = False
         self.args.write = True
 
     def read(self, event):
+        r"""Read a Tag"""
         self.payload_response = self.rfid.read_tag()
 
     def write(self, event):
-
+        r"""Write a Tag"""
         if (self.w_cid is None or self.w_uid is None):
             print('Please set Tag CID and UID')
             exit(-1)
@@ -150,12 +151,8 @@ class RfidCli(object):
         self.rfid.write_tag_from_cid_and_uid(
             self.w_cid, self.w_uid, tag_type=self.tag_type)
 
-        # if self.is_beep(None):
-        #     # wait before sending beep
-        #     sleep(0.2)
-        #     self.rfid.beep(2)
-
     def verify(self, event):
+        r"""Verify written Tag"""
         payload_response = self.rfid.read_tag()
         uid = payload_response.get_tag_uid()
         cid = payload_response.get_tag_cid()
@@ -166,17 +163,15 @@ class RfidCli(object):
             print(str('Write OK! %s %s') % (cid, uid))
 
     def increment(self, event):
+        r"""Increment UID. Used in `auto-increment mode`"""
         self.w_uid = self.w_uid + self.args.auto_increment
 
-    def prompt(self, event): 
+    def prompt(self, event):
+        r"""Prompt user to press any key after reading source tag (clone mode)"""
         self.w_cid = self.payload_response.get_tag_cid()
         self.w_uid = self.payload_response.get_tag_uid()
 
         print("Read done! %s %s" % (self.w_cid, self.w_uid))
-        # if self.args.beep:
-        #     # wait before sending beep
-        #     sleep(0.2)
-        #     self.rfid.beep()
         raw_input("Move source tag away from reader and press any key...")
 
     def connect(self, vid, pid):
@@ -185,7 +180,7 @@ class RfidCli(object):
         except Exception as e:
             print(e)
             exit()
-    
+
     def beep(self, event):
         if self.args.beep:
             times = 1 if event.transition.source == 'print' or event.transition.dest == 'prompt' else 2
@@ -382,6 +377,7 @@ def main():
 
     while True:
         rfid_cli.next()
+
 
 if __name__ == "__main__":
     main()
