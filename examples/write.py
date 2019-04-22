@@ -1,4 +1,4 @@
-# Copyright (c) 2018 charlysan
+# Copyright (c) 2019 charlysan
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +41,7 @@ def main():
 
     # CID and UID to be written
     CID = 77
-    UID = 1234567890
+    UID = 1234567891
 
     try:
         # Try to open RFID device using default vid:pid (ffff:0035)
@@ -70,7 +70,7 @@ def main():
                 uid_temp = uid
 
                 rfid.write_tag_from_cid_and_uid(CID, UID)
-                sleep(0.1) # you cannot immediately read after a write operation
+                sleep(0.2) # you cannot immediately read after a write operation
 
                 payload_response_w = rfid.read_tag()
                 # Write verification

@@ -16,26 +16,20 @@
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# SOFTWARE
 
-
-r"""Example script to read a tag's id
+r"""Example script used to discover supported commands using brute force
 
 Flow:
-    - Try to read a tag within an infinite loop.
-    - If a tag is found then beep once and output Customer ID, UID and CRC Sum.
-
-
-Note: extra check has been added to avoid processing the same tag (CID/UID) more than once in a row.
+    - Itarate from 0x00 to 0xFF and send each command to Feature Report 1
+    - if response[12] != 143 then the command has been recognized by the device
 """
 
-from __future__ import print_function
-from time import sleep
+from rfidhid.usb_hid import HID
 from rfidhid.core import RfidHid
+from time import sleep
 
 def main():
-    """Main Read Tag Function"""
-
     try:
         # Try to open RFID device using default vid:pid (ffff:0035)
         rfid = RfidHid()
@@ -47,30 +41,36 @@ def main():
     print('Initializing device...')
     rfid.init()
     sleep(2)
-    print('Done!')
-    print ('Please hold a tag to the reader until you hear a beep...\n')
+    
+    cmds = []
 
-    id_temp = None
+    payload = [0x00] * 0x03
+    payload[0x01] = 0x01
+    payload[0x02] = 0x01
 
-    while True:
-        payload_response = rfid.read_tag()
-        if payload_response.has_id_data():
-            uid = payload_response.get_tag_uid()
-            # Avoid processing the same tag (CID/UID) more than once in a row
-            if uid != id_temp:
-                id_temp = uid
-                print('uid: %s' % uid)
-                print('customer_id: %s' % payload_response.get_tag_cid())
-                print('CRC Sum: %s' % hex(payload_response.get_crc_sum()))
-                w26 = payload_response.get_tag_w26()
-                if w26:
-                    print('W26: facility code = %d, card number = %d' % w26)
-                print('')
-                rfid.beep()
-        else:
-            id_temp = None
-        sleep(0.1)
+    for cmd in range (0x00,0xff):
+        payload[0x00] = cmd 
+        buff = rfid._initialize_write_buffer(payload)
 
+        # Write Feature Report 1
+        response = rfid.hid.set_feature_report(1, buff)
+
+        if response != rfid.BUFFER_SIZE:
+            raise ValueError('Communication Error.')
+
+        # Read from Feature Report 2    
+        response = rfid.hid.get_feature_report(2, rfid.BUFFER_SIZE).tolist()
+        cmd_found = ""
+
+        if response[12] != 143 :
+            cmd_found = "CMD FOUND! " + hex(cmd)
+            cmds.append(cmd)
+
+        print('CMD: ' + hex(cmd) + ' response: ' + str(response) + ' ' + cmd_found)
+        sleep(0.02)
+    
+    print('Found ' + str(len(cmds)) + ' commands:')
+    print([hex(x) for x in cmds])
 
 if __name__ == "__main__": 
     main()
