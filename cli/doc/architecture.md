@@ -1,4 +1,4 @@
-# RFID_CLI Architecture
+# RFID_CLI
 
 A command line tool used to read, write and clone 125Khz tags, implemented using a state machine.
 
