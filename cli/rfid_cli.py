@@ -22,6 +22,7 @@ from __future__ import print_function
 import argparse
 import sys
 import struct
+import signal
 
 from time import sleep
 from rfidhid.core import RfidHid
@@ -32,8 +33,8 @@ from transitions import Machine
 
 class RfidCli(object):
 
-    states = ['start', 'init', 'read', 'print', 'write',
-              'clone', 'verify', 'exit', 'prompt']
+    states = ['start', 'init', 'read', 'print',
+              'write', 'clone', 'verify', 'exit']
     rfid = None
     machine = None
     payload_response_temp = None
@@ -85,13 +86,13 @@ class RfidCli(object):
 
         # Clone Tag
         self.machine.add_transition(
-            trigger='next', source='start', dest='read', after='read', conditions=['is_clone'])
+            trigger='next', source='start', dest='read', before=['print_clone_src_notice'], after='read', conditions=['is_clone'])
         self.machine.add_transition(
             trigger='next', source='read', dest='read', before='sleep', after='read', conditions=['is_clone'], unless='has_id_data')
         self.machine.add_transition(
-            trigger='next', source='read', dest='prompt', after=['beep', 'prompt'], conditions=['is_clone', 'has_id_data'])
+            trigger='next', source='read', dest='start', before=['beep', 'prompt'], after=['read', 'switch_to_write_condition', 'print_clone_dest_notice'], conditions=['is_clone', 'is_prompt'])
         self.machine.add_transition(
-            trigger='next', source='prompt', dest='read', after=['read', 'switch_to_write_condition'], conditions=['is_clone'])
+            trigger='next', source='read', dest='start', before=['beep', 'prompt'], after=['sleep','read', 'switch_to_write_condition', 'print_clone_dest_notice'], conditions=['is_clone'], unless=['is_prompt'])
 
     def is_init(self, event):
         return self.args.init
@@ -123,12 +124,19 @@ class RfidCli(object):
     def is_beep(self, event):
         return self.args.beep
 
+    def is_prompt(self, event):
+        return self.args.prompt
+
     def has_id_data(self, event):
         return self.payload_response.has_id_data()
 
     def sleep(self, event):
         delay = self.args.read_interval
-        if (event.transition.source == 'write' and event.transition.dest == 'write') or (event.transition.source == 'verify' and event.transition.dest == 'read'):
+        if (event.transition.source == 'write' and event.transition.dest == 'write'):
+            delay = self.args.write_interval
+        if (event.transition.source == 'verify' and event.transition.dest == 'read'):
+            delay = self.args.write_interval
+        if (event.transition.source == 'read' and event.transition.dest == 'start' and self.is_clone):
             delay = self.args.write_interval
         sleep(delay)
 
@@ -172,7 +180,14 @@ class RfidCli(object):
         self.w_uid = self.payload_response.get_tag_uid()
 
         print("Read done! %s %s" % (self.w_cid, self.w_uid))
-        raw_input("Move source tag away from reader and press any key...")
+        if self.args.prompt:
+            raw_input("Move source tag away from reader and press ENTER...")
+
+    def print_clone_src_notice(self, event):
+        print("Put source tag close to the reader...")
+
+    def print_clone_dest_notice(self, event):
+        print("Put target tag close to the reader...")
 
     def connect(self, vid, pid):
         try:
@@ -271,9 +286,21 @@ class RfidCli(object):
             exit(-1)
 
     def parse_arguments(self):
+
+        example_text = r'''Examples:
+
+        rfid_cli -r -b hex
+        rfid_cli -r --w26
+        rfid_cli -r -b bin --loop --single
+        rfid_cli -w 12 12345 --t5577
+        rfid_cli -w 0x0b 0xaabb
+        rfid_cli -w 12 12345 --loop -a 1'''
+
         parser = argparse.ArgumentParser(
             description="RFID cli tool for reading and writing tags IDs using 125Khz Chinese USB HID Reader/Writer",
             version="v1.0 (March 10, 2019)",
+            epilog=example_text,
+            formatter_class=argparse.RawDescriptionHelpFormatter
         )
 
         parser.add_argument('-i',
@@ -313,11 +340,11 @@ class RfidCli(object):
                             action="store_true", dest="single",
                             help="If loop mode is enabled do not print same tag more than once", default=False)
 
-        parser.add_argument('--read-interval', metavar='INTERVAL',
+        parser.add_argument('--read-delay', metavar='DELAY',
                             action="store", dest="read_interval", type=float,
                             help="Set Read loop interval in seconds [default: %(default)#2f]", default=0.2)
 
-        parser.add_argument('--write-interval', metavar='INTERVAL',
+        parser.add_argument('--write-delay', metavar='DELAY',
                             action="store", dest="write_interval", type=float,
                             help="Set Write loop interval in seconds [default: %(default)#2f]", default=1)
 
@@ -330,7 +357,7 @@ class RfidCli(object):
                             help="Clone Tag", default=False)
 
         parser.add_argument('w_cid', type=str, metavar='CID', default=None,
-                            nargs='?', help=" Tag's Customer ID")
+                            nargs='?', help=" Tag's Customer ID (in dec or hex format)")
 
         parser.add_argument('w_uid', type=str, metavar='UID', default=None,
                             nargs='?', help=" Tag's  UID")
@@ -343,21 +370,21 @@ class RfidCli(object):
                             action="store_false", dest="verify",
                             help="Do not verify tag after writing", default=True)
 
-        parser.add_argument('--no-read-before-write',
+        parser.add_argument('--no-read',
                             action="store_false", dest="read_before_write",
                             help="Do not read tag before trying to write it", default=True)
+        
+        parser.add_argument('--no-prompt',
+                            action="store_false", dest="prompt",
+                            help="Do not prompt the user to press a key in clone mode", default=True)
 
         parser.add_argument('-a', metavar='VALUE', type=int,
                             action="store", dest="auto_increment",
-                            help="Auto increment UID on every write (loop mode) [default: %(default)#d]", default=0)
+                            help="Auto increment UID on every write [default: %(default)#d]", default=0)
 
         parser.add_argument('--beep',
                             action="store_true", dest="beep",
                             help="Enable Beep", default=False)
-
-        parser.add_argument('-o',
-                            action="store_true", dest="overwrite",
-                            help="Force overwrite", default=False)
 
         args = parser.parse_args(
             args=None if sys.argv[1:] else ['--help'])
@@ -366,13 +393,20 @@ class RfidCli(object):
             args = parser.parse_args(['--help'])
 
         if args.write:
+            if args.w_cid is None or args.w_uid is None:
+                args = parser.parse_args(['--help'])
+
             self.w_cid = self.parse_CID(args.w_cid)
             self.w_uid = self.parse_UID(args.w_uid)
 
         return args
 
+def signal_handler(sig, frame):
+        print('\nProcess terminated by user')
+        sys.exit(0)
 
 def main():
+    signal.signal(signal.SIGINT, signal_handler)
     rfid_cli = RfidCli()
 
     while True:

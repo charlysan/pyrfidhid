@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='pyrfidhid',
-      version='0.2',
+      version='1.0',
       description='Library to control 125Khz RFID USB HID Device',
       url='https://github.com/charlysan/pyrfidhid/',
       # scripts=['cli/rfid_cli.py'],

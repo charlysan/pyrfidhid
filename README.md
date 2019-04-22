@@ -61,11 +61,12 @@ For more complex read/write examples, please check out the [examples](https://gi
 You can also check the [API documentation](documentation/apidoc.txt) for a list of exported methods.
 
 
-## Final Notes
+## RFID CLI Tool
 
-This is still in beta, and there are a couple of "to-do's":
+A command line tool called `rfid_cli` is also included with the library, and it can be used to read, write and clone tags. For a complete documentation please check [rfid_cli documentation](cli/README.md)
 
-- Check if there are more commands available (I'm sure there must be), e.g. get device status, control beep duration and beeping times, control LEDs and RF, etc. 
-- Support [T5577](http://www.xccrfid.com/uploadfile/downloads/T5577.pdf) tags.
-- Support write protection.
-- Implement a console tool capable of reading, writing and cloning tags with the same ease as `IDRW V3` tool.
+
+## Final notes
+
+If you are looking for an Android tool similar to `IDRW V3` you can check [this project](https://github.com/NiceLabs/usb-125khz-idrw)
+
