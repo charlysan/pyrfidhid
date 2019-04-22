@@ -69,4 +69,3 @@ A command line tool called `rfid_cli` is also included with the library, and it 
 ## Final notes
 
 If you are looking for an Android tool similar to `IDRW V3` you can check [this project](https://github.com/NiceLabs/usb-125khz-idrw)
-
