@@ -13,7 +13,7 @@ A command line tool used to read, write and clone 125Khz tags.
 - Read and write in loop mode
 - Clone tags using a single operation
 
-If you are interested in the architecture behind this tool please refer to [rfid_cli architecture document](doc/architecture.md)
+If you are interested in the architecture behind this tool please refer to rfid_cli architecture [document](doc/architecture.md)
 
 
 ## Hardware support
@@ -138,7 +138,7 @@ $ rfid_cli -w 0x1a 0x11abcd
 Write OK! 26 1158093
 ```
 
-Loop mode is also supported for write operation by adding `--loop` flag. When using this mode the tool will keep reading continuously until if successfully read a tag, after that it will try to write the specified values.
+Loop mode is also supported for write operation by adding `--loop` flag. When using this mode the tool will keep reading continuously until it successfully reads a tag, after that it will try to write the specified values.
 
 ### Clone a tag
 
