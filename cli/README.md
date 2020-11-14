@@ -54,8 +54,8 @@ optional arguments:
   -h, --help           show this help message and exit
   -v, --version        show program's version number and exit
   -i                   Initialize Device
-  --usb-vid VID        Set Device Vendor ID in hex format [default: 0xffff]
-  --usb-pid PID        Set Device Product ID in hex format [default: 0x35]
+  --usb-vid VID        Set Device Vendor ID in decimal format [default: 65535]
+  --usb-pid PID        Set Device Product ID in decimal format [default: 53]
   -r                   Read Tag
   -b BASE              Output base type (dec, hex, bin) [default: dec]
   --w26                W26 output
