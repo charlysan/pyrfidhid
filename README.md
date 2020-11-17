@@ -11,16 +11,16 @@ This library is the result of reverse-engineering the communication protocol of 
 
 The library can be used to control the USB RFID device under Linux or MacOS, and it uses [pyusb](https://github.com/pyusb/pyusb) and [libusb](http://libusb.info/) to communicate through the USB port.
 
-## Installation
+## Installation (using pip)
 
-You will need `Python 2.7.x` or greater, and [pip](https://pip.pypa.io/en/stable/). Just clone this repo, install the dependencies and run the `setup.py` script. 
+You will need `Python 2.7.x` or greater, and [pip](https://pip.pypa.io/en/stable/). 
 
 ### MacOS
  
 ```bash
 $ brew install libusb
-$ pip install pyusb --user
-$ python setup.py install --user
+$ pip install pyusb
+$ pip install --upgrade pyrfidhid
 ```
 
 
@@ -29,7 +29,15 @@ $ python setup.py install --user
 ```bash
 $ sudo apt-get install libusb-1.0-0-dev
 $ sudo pip install pyusb
-$ sudo python setup.py install
+$ sudo pip install --upgrade pyrfidhid
+```
+
+## Manual Installation
+
+If you can't install the library using pip, then try to install it using `setup.py` script. Just clone this repo, install the dependencies and run the `setup.py` script: 
+
+```bash
+$ python setup.py install
 ```
 
 

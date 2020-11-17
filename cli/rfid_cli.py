@@ -298,10 +298,13 @@ class RfidCli(object):
 
         parser = argparse.ArgumentParser(
             description="RFID cli tool for reading and writing tags IDs using 125Khz Chinese USB HID Reader/Writer",
-            version="v1.0 (March 10, 2019)",
             epilog=example_text,
             formatter_class=argparse.RawDescriptionHelpFormatter
         )
+
+        parser.add_argument('--version',
+                            action="version",
+                            version="v1.1.4 (Nov 14th, 2020)")
 
         parser.add_argument('-i',
                             action="store_true", dest="init",
@@ -309,12 +312,12 @@ class RfidCli(object):
 
         parser.add_argument('--usb-vid',
                             action='store', dest='usb_vid', metavar='VID', type=int,
-                            help="Set Device Vendor ID in hex format [default: %(default)#x]", default=0xffff
+                            help="Set Device Vendor ID in decimal format [default: %(default)#x]", default=65535
                             )
 
         parser.add_argument('--usb-pid',
                             action="store", dest="usb_pid", metavar='PID', type=int,
-                            help="Set Device Product ID in hex format [default: %(default)#x] ", default=0x0035)
+                            help="Set Device Product ID in decimal format [default: %(default)#x] ", default=53)
 
         parser.add_argument('-r',
                             action="store_true", dest="read",
